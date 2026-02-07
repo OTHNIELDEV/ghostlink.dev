@@ -1,0 +1,57 @@
+<nav class="sticky top-0 z-50 glass border-b border-slate-700/50">
+    <div class="container mx-auto px-4 h-16 flex items-center justify-between">
+        <!-- Logo -->
+        <a href="/" class="flex items-center gap-2 group">
+            <div
+                class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-indigo-500 flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:shadow-emerald-500/20 transition-all">
+                G</div>
+            <span
+                class="font-bold text-xl tracking-tight text-white group-hover:text-emerald-400 transition-colors">GhostLink</span>
+        </a>
+
+        <!-- Navigation Links -->
+        <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+            <a href="/" class="hover:text-white transition-colors">Home</a>
+            <a href="/#features" class="hover:text-white transition-colors">Features</a>
+            <a href="/#testimonials" class="hover:text-white transition-colors">Testimonials</a>
+            <a href="/#pricing" class="hover:text-white transition-colors">Pricing</a>
+            <a href="/dashboard" class="hover:text-white transition-colors">Dashboard</a>
+        </div>
+
+        <!-- CTA Button / Profile -->
+        <div class="flex items-center gap-4">
+            {% if user %}
+            <div class="relative group" x-data="{ open: false }">
+                <button @click="open = !open" @click.away="open = false"
+                    class="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white transition-colors">
+                    <span>{{ user.full_name or user.email }}</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <!-- Dropdown -->
+                <div x-show="open" x-transition
+                    class="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-xl py-1 z-50"
+                    style="display: none;">
+                    <a href="/dashboard"
+                        class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Dashboard</a>
+                    <a href="/users/profile"
+                        class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Profile</a>
+                    <a href="/settings"
+                        class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Settings</a>
+                    <div class="border-t border-slate-800 my-1"></div>
+                    <a href="/auth/logout"
+                        class="block px-4 py-2 text-sm text-red-400 hover:bg-slate-800 hover:text-red-300">Sign Out</a>
+                </div>
+            </div>
+            {% else %}
+            <a href="/auth/login" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Sign
+                In</a>
+            <a href="/auth/register"
+                class="px-5 py-2 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-medium transition-all hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10">
+                Get Started
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</nav>

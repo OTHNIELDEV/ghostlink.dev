@@ -1,0 +1,54 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    <!-- Sidebar -->
+    {% include 'components/sidebar.html' %}
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-auto p-8 relative">
+        <h1 class="text-2xl font-bold text-white mb-6">Settings</h1>
+
+        <div class="max-w-2xl space-y-6">
+            <!-- API Configuration -->
+            <div class="glass p-6 rounded-xl border border-slate-700/50">
+                <h3 class="text-lg font-bold text-white mb-4">API Configuration</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-1">OpenAI API Key</label>
+                        <input type="password" value="sk-........................"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                            disabled>
+                        <p class="text-xs text-slate-500 mt-1">Managed via environment variables.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notification Settings -->
+            <div class="glass p-6 rounded-xl border border-slate-700/50">
+                <h3 class="text-lg font-bold text-white mb-4">Notifications</h3>
+                <div class="space-y-4">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked
+                            class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500">
+                        <span class="text-slate-300">Email me when analysis is complete</span>
+                    </label>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox"
+                            class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500">
+                        <span class="text-slate-300">Weekly analytics digest</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="glass p-6 rounded-xl border border-slate-700/50 border-red-500/20">
+                <h3 class="text-lg font-bold text-red-400 mb-4">Danger Zone</h3>
+                <button
+                    class="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/50 rounded-lg transition-colors">
+                    Delete Account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

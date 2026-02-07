@@ -1,0 +1,37 @@
+name: Smoke Checks
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite+aiosqlite:///./ghostlink.db
+      ENVIRONMENT: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile Check
+        run: python -m compileall -q app tests
+
+      - name: Run Core Flow Tests
+        run: python -m pytest -q tests/test_phase1_core_flows.py tests/test_auto_optimize_loop.py tests/test_role_policy_approvals.py tests/test_approval_inbox_and_audit_logs.py tests/test_innovation_phase3.py tests/test_remaining_innovations.py tests/test_core_engine.py
+
+      - name: Run Smoke Script
+        run: python scripts/smoke_billing_security.py

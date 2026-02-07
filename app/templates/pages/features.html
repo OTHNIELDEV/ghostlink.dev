@@ -1,0 +1,167 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="relative overflow-hidden pt-24 pb-20">
+    <!-- Background Elements -->
+    <div
+        class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-indigo-500/10 via-emerald-500/5 to-transparent blur-3xl -z-10 pointer-events-none">
+    </div>
+
+    <div class="container mx-auto px-4">
+        <!-- Header -->
+        <div class="text-center max-w-3xl mx-auto mb-20">
+            <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
+                Built for the <span
+                    class="bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-indigo-400">AI Era</span>
+            </h1>
+            <p class="text-xl text-slate-400">
+                GhostLink provides the essential infrastructure to make your content visible, understandable, and
+                accessible to AI agents and LLMs.
+            </p>
+        </div>
+
+        <!-- Future Feature 1: JSON-LD -->
+        <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
+            <div class="order-2 md:order-1">
+                <div class="glass p-8 rounded-2xl border border-slate-700/50 relative overflow-hidden group">
+                    <div
+                        class="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500">
+                    </div>
+                    <pre
+                        class="bg-slate-900/80 p-6 rounded-xl text-xs md:text-sm text-slate-300 font-mono overflow-x-auto relative z-10"><code>{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "GhostLink",
+  "description": "AI Visibility Infrastructure",
+  "url": "https://ghostlink.dev"
+}</code></pre>
+                </div>
+            </div>
+            <div class="order-1 md:order-2">
+                <div
+                    class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-4">
+                    Structured Data
+                </div>
+                <h2 class="text-3xl font-bold mb-4">Instant JSON-LD Injection</h2>
+                <p class="text-slate-400 leading-relaxed mb-6">
+                    Stop writing schema markup by hand. Our engine analyzes your content and automatically generates
+                    perfect, compliant JSON-LD structured data. This helps search engines and AI lookups understand
+                    exactly what your site is about.
+                </p>
+                <ul class="space-y-2 text-slate-300">
+                    <li class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
+                            </path>
+                        </svg>
+                        Schema.org compliant
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
+                            </path>
+                        </svg>
+                        Dynamic updates
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Feature 2: llms.txt -->
+        <div class="grid md:grid-cols-2 gap-12 items-center mb-24">
+            <div>
+                <div
+                    class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-4">
+                    /llms.txt Standard
+                </div>
+                <h2 class="text-3xl font-bold mb-4">Automated <code>llms.txt</code></h2>
+                <p class="text-slate-400 leading-relaxed mb-6">
+                    The new standard for AI crawling. We generate and host a concise markdown summary of your website at
+                    <code>/llms.txt</code>, specifically optimized for Large Language Models to read and reference your
+                    content efficiently.
+                </p>
+                <ul class="space-y-2 text-slate-300">
+                    <li class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
+                            </path>
+                        </svg>
+                        Markdown optimized for tokens
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
+                            </path>
+                        </svg>
+                        Zero configuration required
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <div class="glass p-8 rounded-2xl border border-slate-700/50 relative overflow-hidden group">
+                    <div
+                        class="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 to-emerald-500/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500">
+                    </div>
+                    <div class="bg-slate-900/80 p-6 rounded-xl relative z-10 h-64 flex flex-col">
+                        <div class="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
+                            <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                            <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                            <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                            <span class="ml-2 text-xs text-slate-500 font-mono">/llms.txt</span>
+                        </div>
+                        <div class="text-slate-300 font-mono text-sm opacity-80">
+                            # GhostLink Documentation<br><br>
+                            > Mission: Connect websites to AI agents.<br><br>
+                            ## Core Concepts<br>
+                            - JSON-LD Injection<br>
+                            - Smart Caching...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature 3: Analytics -->
+        <div class="grid md:grid-cols-2 gap-12 items-center">
+            <div class="order-2 md:order-1">
+                <div class="glass p-8 rounded-2xl border border-slate-700/50 relative overflow-hidden group">
+                    <div
+                        class="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-500">
+                    </div>
+                    <!-- Mock Chart -->
+                    <div class="bg-slate-900/80 p-6 rounded-xl relative z-10 flex items-end justify-between h-48 gap-2">
+                        <div class="w-full bg-slate-800 rounded-t h-[40%] animate-pulse"></div>
+                        <div class="w-full bg-slate-800 rounded-t h-[60%] animate-pulse" style="animation-delay: 0.1s">
+                        </div>
+                        <div class="w-full bg-emerald-500/50 rounded-t h-[85%]"></div>
+                        <div class="w-full bg-slate-800 rounded-t h-[55%] animate-pulse" style="animation-delay: 0.2s">
+                        </div>
+                        <div class="w-full bg-emerald-500 rounded-t h-[95%] shadow-[0_0_20px_rgba(16,185,129,0.5)]">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="order-1 md:order-2">
+                <div
+                    class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-700/50 border border-slate-600/50 text-slate-300 text-xs font-semibold uppercase tracking-wider mb-4">
+                    Analytics
+                </div>
+                <h2 class="text-3xl font-bold mb-4">AI Bot Analytics</h2>
+                <p class="text-slate-400 leading-relaxed mb-6">
+                    See who is scraping your site. Distinguish between human visitors and AI bots like GPTBot,
+                    Google-Extended, and ClaudeBot. Measure your "AI Visibility Score" over time.
+                </p>
+                <a href="/dashboard"
+                    class="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+                    View Dashboard Demo
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                    </svg>
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

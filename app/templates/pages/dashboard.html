@@ -1,0 +1,370 @@
+{% extends "layouts/base.html" %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden" x-data="{ 
+        showModal: false, 
+        showAddSiteModal: false,
+        showEditModal: false,
+        editSiteId: null,
+        editJsonContent: ''
+     }">
+
+    <!-- Sidebar -->
+    {% include 'components/sidebar.html' %}
+
+    <!-- Main Content AREA -->
+    <div class="flex-1 overflow-auto p-8 relative scroll-smooth bg-slate-950">
+
+        <!-- Header & Stats -->
+        <div class="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+            <div class="flex-1">
+                <div class="flex items-center gap-4 mb-2">
+                    <h1 class="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
+                    {% if organizations|length > 1 %}
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" 
+                                class="flex items-center gap-2 px-3 py-1.5 glass rounded-lg text-sm text-slate-300 hover:text-white transition-colors">
+                            <span>{{ organization.name|default('Personal') }}</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div x-show="open" @click.away="open = false"
+                             class="absolute top-full left-0 mt-2 w-64 glass rounded-xl border border-slate-700 shadow-xl z-50"
+                             style="display: none;">
+                            <div class="p-2">
+                                {% for org in organizations %}
+                                <a href="/dashboard?org_id={{ org.id }}" 
+                                   class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors {% if org.id == org_id %}bg-emerald-500/10 text-emerald-400{% else %}text-slate-300{% endif %}">
+                                    <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-sm font-bold">
+                                        {{ org.name[0] }}
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-medium truncate">{{ org.name }}</div>
+                                        <div class="text-xs text-slate-500 capitalize">{{ org.role }}</div>
+                                    </div>
+                                    {% if org.id == org_id %}
+                                    <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                    {% endif %}
+                                </a>
+                                {% endfor %}
+                            </div>
+                            <div class="border-t border-slate-700/50 p-2">
+                                <a href="/api/organizations" class="flex items-center gap-2 px-3 py-2 text-sm text-emerald-400 hover:text-emerald-300 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    Create Organization
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <p class="text-slate-400">Manage your sites and monitor AI agent traffic.</p>
+            </div>
+            <button @click="showAddSiteModal = true"
+                class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Add New Site
+            </button>
+        </div>
+
+        <!-- AI Visibility Scoreboard -->
+        <div class="mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div class="glass border border-slate-700/50 rounded-xl p-5">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-2">Visibility Score</div>
+                    <div class="text-3xl font-bold text-white">{{ scoreboard.visibility_score }}</div>
+                    <div class="mt-3 h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-emerald-500" style="width: {{ scoreboard.visibility_score }}%"></div>
+                    </div>
+                </div>
+
+                <div class="glass border border-slate-700/50 rounded-xl p-5">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-2">AI Crawlers (7d)</div>
+                    <div class="text-3xl font-bold text-white">{{ scoreboard.ai_crawler_visits_7d }}</div>
+                    <div class="text-sm mt-2 {% if scoreboard.ai_crawler_growth_pct >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">
+                        {% if scoreboard.ai_crawler_growth_pct >= 0 %}+{% endif %}{{ scoreboard.ai_crawler_growth_pct }}% vs prev 7d
+                    </div>
+                </div>
+
+                <div class="glass border border-slate-700/50 rounded-xl p-5">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-2">Human Visits (7d)</div>
+                    <div class="text-3xl font-bold text-white">{{ scoreboard.human_visits_7d }}</div>
+                    <div class="text-sm mt-2 {% if scoreboard.human_growth_pct >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">
+                        {% if scoreboard.human_growth_pct >= 0 %}+{% endif %}{{ scoreboard.human_growth_pct }}% vs prev 7d
+                    </div>
+                </div>
+
+                <div class="glass border border-slate-700/50 rounded-xl p-5">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-2">Active Bots (30d)</div>
+                    <div class="text-3xl font-bold text-white">{{ scoreboard.active_bots_30d }}</div>
+                    <div class="text-sm mt-2 text-slate-400">Distinct crawler user agents seen</div>
+                </div>
+            </div>
+
+            <div class="mt-4 glass border border-slate-700/50 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-semibold text-white">Top AI Crawlers (30d)</h2>
+                    <span class="text-xs text-slate-400">Traffic share</span>
+                </div>
+                {% if scoreboard.top_bots_30d %}
+                <div class="space-y-3">
+                    {% for bot in scoreboard.top_bots_30d %}
+                    <div>
+                        <div class="flex items-center justify-between text-sm mb-1">
+                            <span class="text-slate-200">{{ bot.name }}</span>
+                            <span class="text-slate-400">{{ bot.count }} visits ({{ bot.share_pct }}%)</span>
+                        </div>
+                        <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-cyan-500"
+                                 style="width: {{ bot.share_pct if bot.share_pct > 4 else 4 }}%"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-sm text-slate-400">
+                    No AI crawler traffic recorded in the last 30 days.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if pending_approval_count and pending_approval_count > 0 %}
+        <div class="mb-8 glass border border-amber-500/30 rounded-xl p-5">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                <div>
+                    <h2 class="text-base font-semibold text-white">Pending Approval Inbox</h2>
+                    <p class="text-sm text-slate-400">
+                        {{ pending_approval_count }} request{{ '' if pending_approval_count == 1 else 's' }} waiting for decision.
+                    </p>
+                </div>
+                <a href="/approvals?org_id={{ org_id }}"
+                    class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 transition-colors text-sm font-semibold">
+                    Open Full Inbox
+                </a>
+            </div>
+
+            <div class="space-y-3">
+                {% for approval in pending_approvals %}
+                <div class="rounded-lg border border-slate-700/60 bg-slate-900/60 p-4">
+                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold text-slate-100">#{{ approval.id }} · {{ approval.summary }}</div>
+                            <div class="mt-1 text-xs text-slate-400">
+                                Requested by {{ approval.requested_by_label }} · {{ approval.created_at.strftime('%Y-%m-%d %H:%M') if approval.created_at else '-' }}
+                            </div>
+                            {% if approval.requester_note %}
+                            <div class="mt-2 text-xs text-slate-300 border border-slate-700/70 rounded-md px-2 py-1 inline-block">
+                                Note: {{ approval.requester_note }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% if can_review_approvals %}
+                        <div class="flex gap-2 shrink-0">
+                            <button
+                                class="px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
+                                onclick="reviewApprovalRequest({{ approval.id }}, 'approve', {{ org_id }})">
+                                Approve
+                            </button>
+                            <button
+                                class="px-3 py-1.5 rounded-md text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/25 hover:bg-rose-500/25 transition-colors"
+                                onclick="reviewApprovalRequest({{ approval.id }}, 'reject', {{ org_id }})">
+                                Reject
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Global HTMX Indicator -->
+        <div id="loading-spinner" class="htmx-indicator fixed top-4 right-4 z-50">
+            <div
+                class="bg-slate-800 text-white px-4 py-2 rounded-lg shadow-xl flex items-center gap-3 border border-slate-700">
+                <svg class="animate-spin h-5 w-5 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                    </path>
+                </svg>
+                <span class="text-sm font-medium">Processing...</span>
+            </div>
+        </div>
+
+        <!-- Site Grid -->
+        <div id="site-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {% for site in sites %}
+            {% include 'components/site_card.html' with context %}
+            {% endfor %}
+
+            {% if not sites %}
+            <div id="empty-state" class="col-span-full py-20">
+                <div
+                    class="max-w-md mx-auto text-center p-8 border-2 border-dashed border-slate-800 rounded-3xl bg-slate-900/50">
+                    <div class="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white mb-2">No sites added yet</h3>
+                    <p class="text-slate-400 text-sm mb-6">Start by adding your website URL to generate optimized
+                        JSON-LD and llms.txt.</p>
+                    <button @click="showAddSiteModal = true"
+                        class="text-emerald-400 font-medium hover:text-emerald-300 transition-colors">
+                        + Add your first site
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modals Section -->
+
+    <!-- Add Site Modal -->
+    <div x-show="showAddSiteModal" class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        style="display: none;">
+        <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" @click="showAddSiteModal = false"
+            x-transition.opacity></div>
+
+        <div class="relative z-10 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full p-6"
+            x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-4">
+
+            <h3 class="text-xl font-bold text-white mb-4">Add Website</h3>
+            <form hx-post="/api/sites" hx-target="#site-list" hx-swap="afterbegin" hx-indicator="#loading-spinner"
+                x-on:htmx:after-request="showAddSiteModal = false; $el.reset(); document.getElementById('empty-state')?.remove()"
+                class="space-y-4">
+                <input type="hidden" name="org_id" value="{{ org_id }}">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-1">Website URL</label>
+                    <input type="url" name="url" placeholder="https://example.com"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                        required>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" @click="showAddSiteModal = false"
+                        class="px-4 py-2 text-slate-400 hover:text-white transition-colors">Cancel</button>
+                    <button type="submit"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-emerald-900/20">Add
+                        Site</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JSON Editor Modal -->
+    <div x-show="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center px-4" style="display: none;">
+        <div class="absolute inset-0 bg-slate-950/90 backdrop-blur-md" @click="showEditModal = false"
+            x-transition.opacity></div>
+
+        <div class="relative z-10 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh]"
+            x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100">
+
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
+                    Edit JSON-LD
+                </h3>
+                <button @click="showEditModal = false" class="text-slate-500 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex-1 p-0 relative">
+                <form :hx-post="'/api/dashboard/sites/' + editSiteId + '/update_json'" hx-target="#site-list"
+                    hx-swap="outerHTML" id="edit-form"
+                    x-on:htmx:after-request="showEditModal = false; emitToast('JSON Updated Successfully')">
+                    <textarea name="json_content" x-model="editJsonContent"
+                        class="w-full h-[50vh] bg-[#1e1e1e] text-emerald-400 font-mono text-sm p-4 focus:outline-none resize-none"
+                        spellcheck="false"></textarea>
+                </form>
+            </div>
+
+            <div class="p-4 border-t border-slate-800 bg-slate-900 rounded-b-2xl flex justify-between items-center">
+                <div class="text-xs text-slate-500">Make sure JSON format is valid before saving.</div>
+                <div class="flex gap-3">
+                    <button @click="showEditModal = false"
+                        class="px-4 py-2 text-slate-400 hover:text-white transition-colors">Cancel</button>
+                    <button type="submit" form="edit-form"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-medium transition-colors">Save
+                        Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    async function reviewApprovalRequest(requestId, decision, orgId) {
+        const endpoint = `/api/v1/approvals/${requestId}/${decision}?org_id=${orgId}`;
+        const response = await fetch(endpoint, { method: 'POST' });
+
+        let payload = {};
+        try {
+            payload = await response.json();
+        } catch (_) {
+            payload = {};
+        }
+
+        if (!response.ok) {
+            emitToast(payload.detail || 'Failed to process approval request');
+            return;
+        }
+
+        emitToast(decision === 'approve' ? 'Approval processed' : 'Approval rejected');
+        setTimeout(() => window.location.reload(), 500);
+    }
+
+    function openJsonEditor(siteId, currentJson) {
+        const root = document.querySelector('[x-data]');
+        if (!root) return;
+
+        root.__x.$data.editSiteId = siteId;
+        try {
+            // Handle potentially already parsed object or string
+            const jsonStr = typeof currentJson === 'object' ? JSON.stringify(currentJson) : currentJson;
+            const parsed = JSON.parse(jsonStr);
+            root.__x.$data.editJsonContent = JSON.stringify(parsed, null, 2);
+        } catch (e) {
+            console.warn("Invalid JSON content", e);
+            root.__x.$data.editJsonContent = currentJson;
+        }
+        root.__x.$data.showEditModal = true;
+    }
+
+    function emitToast(message) {
+        // Simple toast implementation if not exists
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-bounce';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+</script>
+{% endblock %}

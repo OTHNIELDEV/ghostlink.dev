@@ -1,0 +1,112 @@
+{% set display_failed = site.status == 'failed' or site.schema_type == 'Error' %}
+<div class="glass rounded-xl p-6 border border-slate-700/50 hover:border-indigo-500/50 transition-all group relative overflow-hidden"
+    id="site-row-{{ site.id }}">
+
+    <div class="flex justify-between items-start mb-4">
+        <div>
+            <h3 class="font-bold text-lg text-white truncate max-w-[200px]" title="{{ site.url }}">{{ site.url }}</h3>
+            <div class="flex items-center gap-2 mt-1">
+                <div class="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium 
+                    {% if display_failed %} bg-red-500/10 text-red-400 border border-red-500/20
+                    {% elif site.status == 'active' or site.status == 'completed' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+                    {% elif site.status == 'pending' or site.status == 'processing' %} bg-yellow-500/10 text-yellow-400 border border-yellow-500/20
+                    {% else %} bg-slate-700 text-slate-400 border border-slate-600 {% endif %}">
+                    {% if display_failed %}
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> Failed
+                    {% elif site.status == 'active' or site.status == 'completed' %}
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Active
+                    {% elif site.status == 'pending' or site.status == 'processing' %}
+                    <span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span> Scanning...
+                    {% else %}
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Pending
+                    {% endif %}
+                </div>
+                {% if site.ai_score > 0 %}
+                <div class="flex items-center gap-2">
+                    <span class="text-xs px-2 py-0.5 rounded border border-slate-700 text-slate-400 bg-slate-800">{{
+                        site.schema_type or 'Unclassified' }}</span>
+                    <div class="text-xs text-slate-500">AI Score: <span class="text-indigo-400 font-bold">{{
+                            site.ai_score
+                            }}</span></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <button class="text-slate-500 hover:text-white transition-colors" hx-delete="/api/sites/{{ site.id }}"
+            hx-confirm="Are you sure you want to delete this site?" hx-target="#site-row-{{ site.id }}"
+            hx-swap="outerHTML">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                </path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Actions -->
+    <div class="space-y-3">
+        {% if display_failed %}
+        <button hx-post="/api/sites/{{ site.id }}/generate" hx-target="#site-row-{{ site.id }}" hx-swap="outerHTML"
+            class="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z">
+                </path>
+            </svg>
+            Generate AI Assets
+        </button>
+        {% if display_failed and site.llms_txt_content %}
+        <p class="text-xs text-red-300 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2 truncate"
+            title="{{ site.llms_txt_content }}">
+            {{ site.llms_txt_content }}
+        </p>
+        {% endif %}
+        {% elif site.status == 'pending' or site.status == 'processing' %}
+        <div
+            class="w-full py-2 px-4 rounded-lg bg-slate-800 text-slate-400 text-sm font-medium text-center flex items-center justify-center gap-2 cursor-wait">
+            <svg class="animate-spin h-4 w-4 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+            </svg>
+            Scanning...
+        </div>
+        <!-- Polling for Updates -->
+        <div hx-get="/api/sites/{{ site.id }}/row" hx-trigger="every 2s" hx-target="#site-row-{{ site.id }}"
+            hx-swap="outerHTML" class="hidden"></div>
+        {% else %}
+        <a href="/report/{{ site.id }}"
+            class="flex items-center justify-center gap-1 py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold transition-colors border border-emerald-500/20 mb-2 w-full group">
+            <svg class="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                </path>
+            </svg>
+            View AIO Report
+        </a>
+        <div class="grid grid-cols-2 gap-2">
+            <!-- Open Modal via HTMX -->
+            <button hx-get="/api/sites/{{ site.id }}" hx-target="#modal-container" hx-swap="innerHTML"
+                @click="showModal = true"
+                class="flex items-center justify-center gap-1 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium transition-colors border border-slate-700">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                </svg>
+                View Code
+            </button>
+            <button onclick="copyScript('{{ request.base_url }}api/bridge/{{ site.script_id }}.js')"
+                class="flex items-center justify-center gap-1 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium transition-colors border border-slate-700 relative">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3">
+                    </path>
+                </svg>
+                Copy Tag
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>

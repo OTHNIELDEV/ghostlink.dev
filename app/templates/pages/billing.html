@@ -1,0 +1,422 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    <!-- Sidebar -->
+    {% include 'components/sidebar.html' %}
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-auto p-8 relative scroll-smooth" x-data="billingPage()">
+
+        <div class="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-white mb-2">Billing & Plans</h1>
+                <p class="text-slate-400">Manage your subscription, billing details, and usage.</p>
+            </div>
+            {% if can_manage_billing %}
+            <button hx-post="/billing/portal?org_id={{ org_id }}" hx-swap="none"
+                hx-on::after-request="handleBillingMutationResponse(event, {{ org_id }}, true)"
+                class="glass px-6 py-2.5 rounded-lg text-white hover:bg-white/10 transition-all border border-emerald-500/30 shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)] flex items-center gap-2 group cursor-pointer">
+                <span>Billing Portal</span>
+                <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+            </button>
+            {% else %}
+            <div class="glass px-6 py-2.5 rounded-lg text-slate-300 border border-slate-700/60 text-sm">
+                Billing changes require owner/admin approval
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="max-w-6xl mx-auto space-y-12 pb-12">
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div
+                    class="lg:col-span-1 glass p-8 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/20 to-slate-900/50 relative overflow-hidden group">
+                    <div
+                        class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-3xl rounded-full pointer-events-none">
+                    </div>
+
+                    <div class="relative z-10">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="text-emerald-400 font-bold uppercase tracking-widest text-xs">Current Plan</div>
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                {% if subscription.subscription.status == 'active' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30
+                                {% elif subscription.subscription.status == 'trialing' %}bg-blue-500/20 text-blue-400 border border-blue-500/30
+                                {% elif subscription.subscription.status == 'past_due' %}bg-amber-500/20 text-amber-400 border border-amber-500/30
+                                {% else %}bg-slate-700 text-slate-400 border border-slate-600{% endif %}">
+                                {{ subscription.subscription.status|default('Free')|title }}
+                            </span>
+                        </div>
+
+                        <h2 class="text-4xl font-bold text-white mb-2">{{ subscription.plan.name|default('Free Plan') }}
+                        </h2>
+
+                        <div class="text-slate-400 text-sm mb-8">
+                            {% if subscription.subscription.cancel_at_period_end %}
+                            <span class="text-amber-400">Cancels on {{ subscription.subscription.current_period_end.strftime('%Y-%m-%d') if subscription.subscription.current_period_end else 'Unknown' }}</span>
+                            {% else %}
+                            Renews on <span class="text-white">{{ subscription.subscription.current_period_end.strftime('%Y-%m-%d') if subscription.subscription.current_period_end else 'Never' }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="border-t border-slate-700/50 pt-6">
+                            {% if (subscription.subscription.status == 'active' or subscription.subscription.status == 'trialing' or subscription.subscription.status == 'past_due') and subscription.subscription.cancel_at_period_end %}
+                            <button hx-post="/billing/reactivate"
+                                hx-vals='{"org_id":"{{ org_id }}","request_approval":"{{ "false" if can_manage_billing else "true" }}"}'
+                                hx-swap="none"
+                                hx-on::after-request="handleBillingMutationResponse(event, {{ org_id }}, {{ 'true' if can_manage_billing else 'false' }})"
+                                class="text-slate-500 hover:text-emerald-400 text-sm flex items-center gap-2 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M3 10h4l3-3m0 0l3 3h4M7 7v10m10-10v10"></path>
+                                </svg>
+                                {% if can_manage_billing %}Reactivate Subscription{% else %}Request Reactivation{% endif %}
+                            </button>
+                            {% elif subscription.subscription.status == 'active' or subscription.subscription.status == 'trialing' or subscription.subscription.status == 'past_due' %}
+                            <button hx-post="/billing/cancel"
+                                hx-vals='{"org_id":"{{ org_id }}","request_approval":"{{ "false" if can_manage_billing else "true" }}"}'
+                                hx-swap="none"
+                                hx-on::after-request="handleBillingMutationResponse(event, {{ org_id }}, {{ 'true' if can_manage_billing else 'false' }})"
+                                hx-confirm="Are you sure you want to cancel your subscription?"
+                                class="text-slate-500 hover:text-red-400 text-sm flex items-center gap-2 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                                {% if can_manage_billing %}Cancel Subscription{% else %}Request Cancellation{% endif %}
+                            </button>
+                            {% elif subscription.subscription.status == 'canceled' %}
+                            <div class="text-slate-400 text-sm">Subscription canceled.</div>
+                            {% else %}
+                            <a href="#plans" class="text-emerald-400 hover:text-emerald-300 text-sm font-medium">Upgrade
+                                to Pro &rarr;</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="lg:col-span-2 glass p-8 rounded-2xl border border-slate-700/50 flex flex-col justify-center">
+                    <h3 class="text-lg font-bold text-white mb-8 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Usage & Limits
+                    </h3>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                        <div class="relative">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-slate-300 font-medium">Active Sites</span>
+                                <span class="text-white">{{ subscription.limits.sites.used|default(0) }} <span
+                                        class="text-slate-500">/ {{ '∞' if subscription.limits.sites.total <= 0 else subscription.limits.sites.total
+                                        }}</span></span>
+                            </div>
+                            <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full bg-emerald-500 rounded-full"
+                                    style="width: {{ (subscription.limits.sites.used / subscription.limits.sites.total * 100) if subscription.limits.sites.total > 0 else 100 }}%">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="relative">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-slate-300 font-medium">Monthly Scans</span>
+                                <span class="text-white">{{ subscription.limits.scans.used|default(0) }} <span
+                                        class="text-slate-500">/ {{ '∞' if subscription.limits.scans.total <= 0 else subscription.limits.scans.total
+                                        }}</span></span>
+                            </div>
+                            <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full bg-blue-500 rounded-full"
+                                    style="width: {{ (subscription.limits.scans.used / subscription.limits.scans.total * 100) if subscription.limits.scans.total > 0 else 100 }}%">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="relative">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-slate-300 font-medium">API Calls</span>
+                                <span class="text-white">{{ subscription.limits.api.used|default(0) }} <span
+                                        class="text-slate-500">/ {{ '∞' if subscription.limits.api.total <= 0 else subscription.limits.api.total
+                                        }}</span></span>
+                            </div>
+                            <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full bg-purple-500 rounded-full"
+                                    style="width: {{ (subscription.limits.api.used / subscription.limits.api.total * 100) if subscription.limits.api.total > 0 else 100 }}%">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="relative">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-slate-300 font-medium">Team Members</span>
+                                <span class="text-white">{{ subscription.limits.team.used|default(1) }} <span
+                                        class="text-slate-500">/ {{ '∞' if subscription.limits.team.total <= 0 else subscription.limits.team.total
+                                        }}</span></span>
+                            </div>
+                            <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full bg-amber-500 rounded-full"
+                                    style="width: {{ (subscription.limits.team.used / subscription.limits.team.total * 100) if subscription.limits.team.total > 0 else 100 }}%">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="plans" class="pt-8">
+                <div class="text-center mb-10">
+                    <h2 class="text-3xl font-bold text-white mb-4">Available Plans</h2>
+
+                    <div
+                        class="inline-flex bg-slate-900 p-1 rounded-xl border border-slate-800 relative cursor-pointer">
+                        <div class="absolute inset-y-1 transition-all duration-300 ease-out bg-emerald-600 rounded-lg shadow-lg"
+                            :style="period === 'monthly' ? 'left: 4px; width: calc(50% - 4px);' : 'left: 50%; width: calc(50% - 4px);'">
+                        </div>
+
+                        <button @click="period = 'monthly'"
+                            class="relative z-10 px-6 py-2 text-sm font-medium transition-colors w-32"
+                            :class="period === 'monthly' ? 'text-white' : 'text-slate-400 hover:text-white'">
+                            Monthly
+                        </button>
+                        <button @click="period = 'yearly'"
+                            class="relative z-10 px-6 py-2 text-sm font-medium transition-colors w-32"
+                            :class="period === 'yearly' ? 'text-white' : 'text-slate-400 hover:text-white'">
+                            Yearly <span class="text-[10px] text-emerald-300 ml-1 font-bold">-20%</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative min-h-[400px]">
+                    <div x-show="loading" class="absolute inset-0 flex items-center justify-center z-20">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+                    </div>
+
+                    <div x-show="!loading && loadError" class="md:col-span-3">
+                        <div class="glass p-6 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center">
+                            <p class="text-amber-300 mb-4" x-text="loadError"></p>
+                            <button @click="init()"
+                                class="px-4 py-2 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-400/30 hover:bg-amber-500/30 transition-colors">
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+
+                    <div x-show="!loading && !loadError && plans.length === 0" class="md:col-span-3">
+                        <div class="glass p-6 rounded-xl border border-slate-700 text-center text-slate-300">
+                            No plans available right now.
+                        </div>
+                    </div>
+
+                    <template x-for="plan in plans" :key="plan.id">
+                        <div class="glass p-8 rounded-2xl border transition-all duration-300 flex flex-col group"
+                            :class="plan.popular ? 'border-emerald-500/50 bg-emerald-950/10 scale-105 shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)] z-10' : 'border-slate-700/50 bg-slate-900/40 hover:border-slate-600'">
+
+                            <div class="mb-6">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h3 class="text-2xl font-bold text-white" x-text="plan.name"></h3>
+                                    <template x-if="plan.popular">
+                                        <span
+                                            class="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider shadow-lg shadow-emerald-500/20">Popular</span>
+                                    </template>
+                                </div>
+                                <div class="flex items-baseline gap-1">
+                                    <span class="text-4xl font-bold text-white">$</span>
+                                    <span class="text-4xl font-bold text-white"
+                                        x-text="period === 'monthly' ? plan.price_monthly : plan.price_yearly"></span>
+                                    <span class="text-slate-500" x-text="period === 'monthly' ? '/mo' : '/yr'"></span>
+                                </div>
+                                <p class="text-slate-400 text-sm mt-3 leading-relaxed" x-text="plan.description"></p>
+                            </div>
+
+                            <ul class="space-y-4 mb-8 flex-grow border-t border-white/5 pt-6">
+                                <template x-for="feature in plan.features">
+                                    <li
+                                        class="flex items-start gap-3 text-slate-300 text-sm group-hover:text-white transition-colors">
+                                        <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                        <span x-text="feature"></span>
+                                    </li>
+                                </template>
+                            </ul>
+
+                            <button hx-post="/billing/checkout" hx-swap="none"
+                                :hx-vals="JSON.stringify({ plan_code: plan.id, interval: period === 'monthly' ? 'month' : 'year', org_id: {{ org_id }}, request_approval: {{ 'false' if can_manage_billing else 'true' }} })"
+                                hx-on::after-request="handleBillingMutationResponse(event, {{ org_id }}, {{ 'true' if can_manage_billing else 'false' }})"
+                                class="w-full py-3 px-6 rounded-lg font-bold transition-all duration-200 border"
+                                :class="currentPlanId === plan.id 
+                                        ? 'bg-slate-800 border-slate-700 text-slate-400 cursor-default' 
+                                        : 'bg-white text-slate-900 border-white hover:bg-emerald-50 hover:shadow-lg hover:-translate-y-1'" :disabled="currentPlanId === plan.id"
+                                x-effect="htmx.process($el)">
+                                <span x-text="currentPlanId === plan.id
+                                        ? 'Current Plan'
+                                        : (plan.is_enterprise
+                                            ? '{{ 'Contact Sales' if can_manage_billing else 'Request Enterprise Approval' }}'
+                                            : '{{ 'Upgrade Now' if can_manage_billing else 'Request Approval' }}')"></span>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="pt-8">
+                <h3 class="text-xl font-bold text-white mb-6">Invoice History</h3>
+                <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-800/50 text-slate-400 text-xs uppercase tracking-wider font-medium">
+                            <tr>
+                                <th class="p-4">Date</th>
+                                <th class="p-4">Amount</th>
+                                <th class="p-4">Status</th>
+                                <th class="p-4 text-right">Invoice</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700/50 text-slate-300 text-sm">
+                            {% if subscription.upcoming_invoice %}
+                            <tr class="bg-emerald-900/5 hover:bg-emerald-900/10 transition-colors">
+                                <td class="p-4">
+                                    <div class="text-white font-medium">{{ subscription.upcoming_invoice.period_end.strftime('%Y-%m-%d') if subscription.upcoming_invoice.period_end else 'Upcoming' }}</div>
+                                    <div class="text-xs text-emerald-400">Upcoming</div>
+                                </td>
+                                <td class="p-4 font-medium text-white">${{ (subscription.upcoming_invoice.amount_due / 100) if subscription.upcoming_invoice.amount_due is not none else '-' }}</td>
+                                <td class="p-4">
+                                    <span
+                                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-800 text-slate-300 border border-slate-600">
+                                        Scheduled
+                                    </span>
+                                </td>
+                                <td class="p-4 text-right">
+                                    <span class="text-slate-500 italic text-xs">Pending</span>
+                                </td>
+                            </tr>
+                            {% endif %}
+
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="p-4" colspan="4">
+                                    <div class="flex items-center justify-center py-4 text-slate-400 gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14">
+                                            </path>
+                                        </svg>
+                                        {% if can_manage_billing %}
+                                        <span>View all past invoices in the <button hx-post="/billing/portal?org_id={{ org_id }}" hx-swap="none"
+                                                hx-on::after-request="handleBillingMutationResponse(event, {{ org_id }}, true)"
+                                                class="text-emerald-400 hover:text-emerald-300 font-medium hover:underline">Billing
+                                                Portal</button></span>
+                                        {% else %}
+                                        <span>Invoice history can be reviewed by owner/admin in Billing Portal.</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    function handleBillingMutationResponse(event, orgId, canManageBilling) {
+        let data = {};
+        try {
+            data = JSON.parse(event.detail.xhr.responseText || '{}');
+        } catch (_) {
+            data = {};
+        }
+
+        if (data.redirect_url) {
+            window.location.href = data.redirect_url;
+            return;
+        }
+
+        if (data.status === 'contact_required') {
+            emitToast(data.message || 'Please contact sales for enterprise onboarding');
+            if (data.mailto_url) {
+                setTimeout(() => {
+                    window.location.href = data.mailto_url;
+                }, 250);
+            }
+            return;
+        }
+
+        if (data.status === 'approval_requested') {
+            emitToast('Approval request submitted');
+            setTimeout(() => {
+                window.location.href = `/approvals?org_id=${orgId}&status=pending`;
+            }, 300);
+            return;
+        }
+
+        if (!event.detail.successful) {
+            emitToast(data.detail || 'Request failed');
+            return;
+        }
+
+        if (canManageBilling) {
+            if (data.status === 'reactivated') {
+                emitToast('Subscription reactivated');
+            } else if (data.status === 'cancel_scheduled') {
+                emitToast('Cancellation scheduled');
+            } else if (data.status === 'cancelled') {
+                emitToast('Subscription cancelled');
+            } else {
+                emitToast('Billing update applied');
+            }
+            setTimeout(() => window.location.reload(), 400);
+        }
+    }
+
+    function billingPage() {
+        return {
+            period: 'monthly',
+            loading: true,
+            loadError: '',
+            plans: [],
+            currentPlanId: '{{ subscription.plan.code|default("free") }}',
+
+            async init() {
+                this.loading = true;
+                this.loadError = '';
+                try {
+                    const response = await fetch('/billing/plans');
+                    if (response.ok) {
+                        const payload = await response.json();
+                        const sourcePlans = Array.isArray(payload) ? payload : (payload.plans || []);
+                        this.plans = sourcePlans.map((plan) => ({
+                            id: plan.code,
+                            name: plan.name,
+                            price_monthly: Math.round((plan.price_monthly || 0) / 100),
+                            price_yearly: Math.round((plan.price_yearly || 0) / 100),
+                            description: plan.description,
+                            features: (plan.features || [])
+                                .filter((feature) => feature.included)
+                                .map((feature) => feature.name),
+                            popular: !!plan.is_popular,
+                            is_enterprise: !!plan.is_enterprise
+                        }));
+                    } else {
+                        throw new Error('API error');
+                    }
+                } catch (error) {
+                    this.plans = [];
+                    this.loadError = 'Unable to load plans. Please try again.';
+                } finally {
+                    this.loading = false;
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

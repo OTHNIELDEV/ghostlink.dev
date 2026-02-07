@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GhostLink | AI Optimization Platform</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#151F32',
+                            900: '#0f172a',
+                            950: '#020617',
+                        },
+                        emerald: {
+                            450: '#10b981', // Custom emerald
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"
+        integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
+        crossorigin="anonymous"></script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Prism.js -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+
+    <style>
+        body {
+            background-color: #0f172a;
+            /* Slate 900 */
+            color: #f8fafc;
+            /* Slate 50 */
+        }
+
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gradient-text {
+            background: linear-gradient(to right, #34d399, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+
+<body class="antialiased min-h-screen flex flex-col font-sans">
+
+    <div x-data="globalState()" @ghostlink-toast.window="openToast($event.detail.message)">
+        {% include 'components/navbar.html' with context %}
+
+        <main class="flex-grow">
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer class="border-t border-slate-800 bg-slate-950 py-8 mt-12">
+            <div class="container mx-auto px-4 text-center text-slate-400">
+                <p>&copy; 2024 GhostLink. All rights reserved.</p>
+            </div>
+        </footer>
+
+        <!-- Global Toast Notification -->
+        <div x-show="isToastVisible" x-transition.opacity.duration.300ms
+            class="fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2"
+            style="display: none;">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span x-text="toastMessage"></span>
+        </div>
+    </div>
+
+    <!-- Global Scripts -->
+    <script>
+        function globalState() {
+            return {
+                isToastVisible: false,
+                toastMessage: '',
+                toastTimeout: null,
+                openToast(message) {
+                    this.toastMessage = message;
+                    this.isToastVisible = true;
+                    if (this.toastTimeout) {
+                        clearTimeout(this.toastTimeout);
+                    }
+                    this.toastTimeout = setTimeout(() => {
+                        this.isToastVisible = false;
+                    }, 2200);
+                }
+            };
+        }
+
+        function emitToast(message) {
+            window.dispatchEvent(new CustomEvent('ghostlink-toast', {
+                detail: {
+                    message
+                }
+            }));
+        }
+
+        function copyScript(scriptUrl) {
+            const resolvedUrl = new URL(scriptUrl, window.location.origin).toString();
+            const scriptTag = `<script async src="${resolvedUrl}"><\/script>`;
+
+            const fallbackCopy = () => {
+                const textarea = document.createElement('textarea');
+                textarea.value = scriptTag;
+                textarea.setAttribute('readonly', '');
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                textarea.setSelectionRange(0, textarea.value.length);
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+            };
+
+            const onSuccess = () => {
+                emitToast('Script tag copied');
+            };
+
+            const onFailure = () => {
+                emitToast('Copy failed. Please copy manually.');
+                window.prompt('Copy script tag', scriptTag);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(scriptTag)
+                    .then(onSuccess)
+                    .catch(() => {
+                        try {
+                            fallbackCopy();
+                            onSuccess();
+                        } catch (_) {
+                            onFailure();
+                        }
+                    });
+                return;
+            }
+
+            try {
+                fallbackCopy();
+                onSuccess();
+            } catch (_) {
+                onFailure();
+            }
+        }
+    </script>
+
+</body>
+
+</html>

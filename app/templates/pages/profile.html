@@ -1,0 +1,81 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Account Settings</h1>
+
+        <div class="grid md:grid-cols-3 gap-8">
+            <!-- Sidebar -->
+            <div class="md:col-span-1">
+                <div class="glass rounded-xl p-4 space-y-2">
+                    <a href="/dashboard"
+                        class="block px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                        Dashboard
+                    </a>
+                    <a href="/users/profile"
+                        class="block px-4 py-2 rounded-lg bg-indigo-500/10 text-indigo-400 font-medium">
+                        Profile
+                    </a>
+                    <a href="/settings"
+                        class="block px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                        API Settings
+                    </a>
+                    <a href="/billing"
+                        class="block px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                        Billing
+                    </a>
+                    <hr class="border-slate-700 my-2">
+                    <a href="/auth/logout"
+                        class="block px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors">
+                        Sign Out
+                    </a>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="md:col-span-2">
+                <div class="glass rounded-xl p-8 border border-slate-700/50">
+                    <h2 class="text-xl font-bold mb-6">Profile Information</h2>
+
+                    {% if success %}
+                    <div
+                        class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 px-4 py-3 rounded-lg text-sm mb-6">
+                        {{ success }}
+                    </div>
+                    {% endif %}
+
+                    <form action="/users/profile" method="POST" class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Email Address</label>
+                            <input type="email" value="{{ user.email }}" disabled
+                                class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-slate-500 cursor-not-allowed">
+                            <p class="mt-1 text-xs text-slate-500">Email cannot be changed.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Full Name</label>
+                            <input type="text" name="full_name" value="{{ user.full_name }}" required
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">New Password (Optional)</label>
+                            <input type="password" name="password"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 text-white"
+                                placeholder="Leave blank to keep current password">
+                        </div>
+
+                        <div class="pt-4 flex justify-end">
+                            <button type="submit"
+                                class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-indigo-500/20">
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

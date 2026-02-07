@@ -1,0 +1,279 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    {% include 'components/sidebar.html' %}
+
+    <div class="flex-1 overflow-auto p-8 bg-slate-950">
+        <div class="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-tight">Approval Inbox</h1>
+                <p class="text-slate-400 mt-1">
+                    {% if organization %}{{ organization.name }}{% else %}Current organization{% endif %} · Role: {{ membership_role }}
+                </p>
+            </div>
+            <div class="px-4 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 text-sm font-semibold">
+                {{ pending_approval_count }} pending
+            </div>
+        </div>
+
+        <div class="mb-6 glass border border-slate-700/60 rounded-xl p-3">
+            <div class="flex flex-wrap gap-2">
+                <a href="/approvals?org_id={{ org_id }}"
+                    class="px-3 py-1.5 rounded-lg text-sm {% if status_filter == 'all' %}bg-slate-800 text-white border border-slate-700{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %}">
+                    All ({{ status_counts.all }})
+                </a>
+                <a href="/approvals?org_id={{ org_id }}&status=pending"
+                    class="px-3 py-1.5 rounded-lg text-sm {% if status_filter == 'pending' %}bg-amber-500/20 text-amber-300 border border-amber-500/40{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %}">
+                    Pending ({{ status_counts.pending }})
+                </a>
+                <a href="/approvals?org_id={{ org_id }}&status=approved"
+                    class="px-3 py-1.5 rounded-lg text-sm {% if status_filter == 'approved' %}bg-emerald-500/20 text-emerald-300 border border-emerald-500/40{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %}">
+                    Approved ({{ status_counts.approved }})
+                </a>
+                <a href="/approvals?org_id={{ org_id }}&status=rejected"
+                    class="px-3 py-1.5 rounded-lg text-sm {% if status_filter == 'rejected' %}bg-rose-500/20 text-rose-300 border border-rose-500/40{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %}">
+                    Rejected ({{ status_counts.rejected }})
+                </a>
+                <a href="/approvals?org_id={{ org_id }}&status=failed"
+                    class="px-3 py-1.5 rounded-lg text-sm {% if status_filter == 'failed' %}bg-violet-500/20 text-violet-300 border border-violet-500/40{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %}">
+                    Failed ({{ status_counts.failed }})
+                </a>
+            </div>
+        </div>
+
+        <div class="mb-6 glass border border-slate-700/60 rounded-xl p-5">
+            <div class="flex flex-col lg:flex-row lg:items-end gap-4">
+                <div class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Request Type</label>
+                        <select id="approval-request-type"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                            <option value="billing_plan_change">Billing Plan Change</option>
+                            <option value="billing_cancel">Billing Cancel</option>
+                            <option value="billing_reactivate">Billing Reactivate</option>
+                        </select>
+                    </div>
+                    <div id="approval-plan-wrapper">
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Plan</label>
+                        <select id="approval-plan-code"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                            <option value="free">Free</option>
+                            <option value="starter">Starter</option>
+                            <option value="pro">Pro</option>
+                            <option value="business">Business</option>
+                            <option value="enterprise">Enterprise</option>
+                        </select>
+                    </div>
+                    <div id="approval-interval-wrapper">
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Interval</label>
+                        <select id="approval-interval"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                            <option value="month">Monthly</option>
+                            <option value="year">Yearly</option>
+                        </select>
+                    </div>
+                    <div id="approval-cancel-wrapper" class="hidden">
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Cancel Mode</label>
+                        <select id="approval-cancel-mode"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                            <option value="period_end">At period end</option>
+                            <option value="immediate">Immediately</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="lg:w-72">
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Requester Note</label>
+                    <input id="approval-request-note" type="text" placeholder="Optional note"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
+                </div>
+                <button onclick="createApprovalRequest({{ org_id }})"
+                    class="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors">
+                    Create Request
+                </button>
+            </div>
+        </div>
+
+        {% if approvals %}
+        <div class="space-y-3">
+            {% for approval in approvals %}
+            <div class="glass border border-slate-700/60 rounded-xl p-5">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2 mb-2">
+                            <span class="text-sm font-semibold text-white">#{{ approval.id }}</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full border
+                                {% if approval.status == 'pending' %}border-amber-500/40 text-amber-300 bg-amber-500/10{% elif approval.status == 'approved' %}border-emerald-500/40 text-emerald-300 bg-emerald-500/10{% elif approval.status == 'rejected' %}border-rose-500/40 text-rose-300 bg-rose-500/10{% elif approval.status == 'failed' %}border-violet-500/40 text-violet-300 bg-violet-500/10{% else %}border-slate-600 text-slate-300 bg-slate-700/40{% endif %}">
+                                {{ approval.status }}
+                            </span>
+                            <span class="text-xs text-slate-500">{{ approval.request_type }}</span>
+                        </div>
+                        <h2 class="text-base font-semibold text-slate-100">{{ approval.summary }}</h2>
+                        <div class="mt-2 text-xs text-slate-400">
+                            Requested by {{ approval.requested_by_label }} · {{ approval.created_at.strftime('%Y-%m-%d %H:%M') if approval.created_at else '-' }}
+                        </div>
+                        {% if approval.requester_note %}
+                        <div class="mt-2 text-xs text-slate-300 border border-slate-700/70 rounded-md px-2 py-1 inline-block">
+                            Note: {{ approval.requester_note }}
+                        </div>
+                        {% endif %}
+                        {% if approval.request_payload %}
+                        <details class="mt-3 border border-slate-700/70 rounded-md bg-slate-900/60 overflow-hidden">
+                            <summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white">
+                                Request Payload JSON
+                            </summary>
+                            <pre class="px-3 pb-3 text-[11px] leading-5 text-emerald-300 overflow-auto"><code>{{ approval.request_payload | tojson(indent=2) }}</code></pre>
+                        </details>
+                        {% endif %}
+                        {% if approval.reviewed_by_label %}
+                        <div class="mt-2 text-xs text-slate-400">
+                            Reviewed by {{ approval.reviewed_by_label }} · {{ approval.reviewed_at.strftime('%Y-%m-%d %H:%M') if approval.reviewed_at else '-' }}
+                        </div>
+                        {% endif %}
+                        {% if approval.review_note %}
+                        <div class="mt-2 text-xs text-slate-300 border border-slate-700/70 rounded-md px-2 py-1 inline-block">
+                            Review Note: {{ approval.review_note }}
+                        </div>
+                        {% endif %}
+                        {% if approval.execution_result %}
+                        <details class="mt-3 border border-slate-700/70 rounded-md bg-slate-900/60 overflow-hidden">
+                            <summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white">
+                                Execution Result JSON
+                            </summary>
+                            <pre class="px-3 pb-3 text-[11px] leading-5 text-cyan-300 overflow-auto"><code>{{ approval.execution_result | tojson(indent=2) }}</code></pre>
+                        </details>
+                        {% endif %}
+                    </div>
+
+                    {% if can_review_approvals and approval.status == 'pending' %}
+                    <div class="flex gap-2 shrink-0">
+                        <button
+                            class="px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
+                            onclick="reviewApprovalRequest({{ approval.id }}, 'approve', {{ org_id }})">
+                            Approve
+                        </button>
+                        <button
+                            class="px-3 py-1.5 rounded-md text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/25 hover:bg-rose-500/25 transition-colors"
+                            onclick="reviewApprovalRequest({{ approval.id }}, 'reject', {{ org_id }})">
+                            Reject
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="glass border border-slate-700/60 rounded-xl p-8 text-center text-slate-400">
+            No approval requests found for this filter.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function syncApprovalRequestInputs() {
+        const requestType = document.getElementById('approval-request-type')?.value;
+        const planWrapper = document.getElementById('approval-plan-wrapper');
+        const intervalWrapper = document.getElementById('approval-interval-wrapper');
+        const cancelWrapper = document.getElementById('approval-cancel-wrapper');
+        if (!planWrapper || !intervalWrapper || !cancelWrapper) return;
+
+        if (requestType === 'billing_plan_change') {
+            planWrapper.classList.remove('hidden');
+            intervalWrapper.classList.remove('hidden');
+            cancelWrapper.classList.add('hidden');
+            return;
+        }
+        if (requestType === 'billing_cancel') {
+            planWrapper.classList.add('hidden');
+            intervalWrapper.classList.add('hidden');
+            cancelWrapper.classList.remove('hidden');
+            return;
+        }
+        planWrapper.classList.add('hidden');
+        intervalWrapper.classList.add('hidden');
+        cancelWrapper.classList.add('hidden');
+    }
+
+    async function createApprovalRequest(orgId) {
+        const requestTypeEl = document.getElementById('approval-request-type');
+        const planCodeEl = document.getElementById('approval-plan-code');
+        const intervalEl = document.getElementById('approval-interval');
+        const cancelModeEl = document.getElementById('approval-cancel-mode');
+        const noteEl = document.getElementById('approval-request-note');
+
+        if (!requestTypeEl || !planCodeEl || !intervalEl || !cancelModeEl || !noteEl) return;
+
+        const requestType = requestTypeEl.value;
+        let payload = {};
+        if (requestType === 'billing_plan_change') {
+            payload = {
+                plan_code: planCodeEl.value,
+                interval: intervalEl.value,
+            };
+        } else if (requestType === 'billing_cancel') {
+            payload = {
+                at_period_end: cancelModeEl.value !== 'immediate',
+            };
+        }
+
+        const response = await fetch(`/api/v1/approvals?org_id=${orgId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                request_type: requestType,
+                payload,
+                requester_note: noteEl.value || undefined,
+            }),
+        });
+
+        let body = {};
+        try {
+            body = await response.json();
+        } catch (_) {
+            body = {};
+        }
+
+        if (!response.ok) {
+            emitToast(body.detail || 'Failed to create approval request');
+            return;
+        }
+
+        emitToast('Approval request created');
+        setTimeout(() => {
+            window.location.href = `/approvals?org_id=${orgId}&status=pending`;
+        }, 300);
+    }
+
+    async function reviewApprovalRequest(requestId, decision, orgId) {
+        const endpoint = `/api/v1/approvals/${requestId}/${decision}?org_id=${orgId}`;
+        const response = await fetch(endpoint, { method: 'POST' });
+
+        let payload = {};
+        try {
+            payload = await response.json();
+        } catch (_) {
+            payload = {};
+        }
+
+        if (!response.ok) {
+            emitToast(payload.detail || 'Failed to process approval request');
+            return;
+        }
+
+        emitToast(decision === 'approve' ? 'Approval processed' : 'Approval rejected');
+        setTimeout(() => window.location.reload(), 500);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const requestTypeEl = document.getElementById('approval-request-type');
+        if (requestTypeEl) {
+            requestTypeEl.addEventListener('change', syncApprovalRequestInputs);
+            syncApprovalRequestInputs();
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,61 @@
+<aside class="w-64 glass border-r border-slate-700/50 hidden md:flex flex-col">
+    <div class="p-6">
+        {% set org_query = ('?org_id=' ~ org_id) if org_id else '' %}
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Menu</h2>
+        <nav class="space-y-2">
+            <a href="/dashboard{{ org_query }}"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'dashboard' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
+                <svg class="w-5 h-5 {% if active_page == 'dashboard' %}text-emerald-500{% endif %}" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                    </path>
+                </svg>
+                Sites
+            </a>
+            <a href="/approvals{{ org_query }}"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'approvals' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
+                <svg class="w-5 h-5 {% if active_page == 'approvals' %}text-emerald-500{% endif %}" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z">
+                    </path>
+                </svg>
+                <span>Approvals</span>
+                {% if pending_approval_count and pending_approval_count > 0 %}
+                <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    {{ pending_approval_count }}
+                </span>
+                {% endif %}
+            </a>
+            <a href="/settings{{ org_query }}"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'settings' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
+                <svg class="w-5 h-5 {% if active_page == 'settings' %}text-emerald-500{% endif %}" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                    </path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                Settings
+            </a>
+            <a href="/billing{{ org_query }}"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'billing' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
+                <svg class="w-5 h-5 {% if active_page == 'billing' %}text-emerald-500{% endif %}" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z">
+                    </path>
+                </svg>
+                Billing
+            </a>
+        </nav>
+    </div>
+    <div class="mt-auto p-6 border-t border-slate-700/50">
+        <div class="text-xs text-slate-500">Logged in as</div>
+        <div class="font-medium text-white truncate">
+            {{ (user.email if user else 'Guest') }}
+        </div>
+    </div>
+</aside>
