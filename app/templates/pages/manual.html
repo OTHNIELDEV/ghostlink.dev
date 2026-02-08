@@ -1,0 +1,241 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    {% include 'components/sidebar.html' %}
+
+    <div class="flex-1 overflow-auto p-8 bg-slate-950">
+        {% set org_query = '?org_id=' ~ org_id %}
+        <div class="max-w-6xl mx-auto space-y-8">
+            <div>
+                <h1 class="text-3xl font-bold text-white">Customer Journey Manual</h1>
+                <p class="text-slate-400 mt-2">
+                    신청부터 결제, 물리 적용, 효용 체감, 일일 PDF 공유까지 고객이 실제로 따라가는 운영 표준 절차입니다.
+                </p>
+            </div>
+
+            <div class="glass border border-slate-700/60 rounded-2xl p-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                    <a href="/dashboard{{ org_query }}" class="rounded-lg border border-slate-700/70 bg-slate-900/60 p-3 hover:border-cyan-500/40 transition-colors">
+                        <div class="text-xs uppercase tracking-wider text-cyan-300">Control</div>
+                        <div class="text-slate-100 font-semibold mt-1">Dashboard</div>
+                        <div class="text-slate-400 text-xs mt-1">운영 실행 화면</div>
+                    </a>
+                    <a href="/docs/integration-guide{{ org_query }}" class="rounded-lg border border-slate-700/70 bg-slate-900/60 p-3 hover:border-cyan-500/40 transition-colors">
+                        <div class="text-xs uppercase tracking-wider text-cyan-300">Deploy</div>
+                        <div class="text-slate-100 font-semibold mt-1">Integration</div>
+                        <div class="text-slate-400 text-xs mt-1">물리 삽입 가이드</div>
+                    </a>
+                    <a href="/proof{{ org_query }}" class="rounded-lg border border-slate-700/70 bg-slate-900/60 p-3 hover:border-cyan-500/40 transition-colors">
+                        <div class="text-xs uppercase tracking-wider text-cyan-300">Value</div>
+                        <div class="text-slate-100 font-semibold mt-1">Proof Center</div>
+                        <div class="text-slate-400 text-xs mt-1">효용 실측 화면</div>
+                    </a>
+                    <a href="/reports/daily{{ org_query }}" class="rounded-lg border border-slate-700/70 bg-slate-900/60 p-3 hover:border-cyan-500/40 transition-colors">
+                        <div class="text-xs uppercase tracking-wider text-cyan-300">Share</div>
+                        <div class="text-slate-100 font-semibold mt-1">Daily Reports</div>
+                        <div class="text-slate-400 text-xs mt-1">PDF 배포 화면</div>
+                    </a>
+                </div>
+            </div>
+
+            {% if onboarding %}
+            <div class="glass border border-slate-700/60 rounded-2xl p-5">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                    <div>
+                        <h2 class="text-base font-semibold text-white">Current Progress</h2>
+                        <p class="text-sm text-slate-400">{{ onboarding.completed_count }}/{{ onboarding.total_steps }} steps complete</p>
+                    </div>
+                    <a href="/dashboard?org_id={{ org_id }}"
+                        class="px-3 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 text-sm font-semibold">
+                        Open Dashboard
+                    </a>
+                </div>
+                <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full bg-emerald-500" style="width: {{ onboarding.progress_pct }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="space-y-4">
+                <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                    <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">Step 1</div>
+                    <h2 class="text-lg font-semibold text-white mb-3">서비스 신청 및 조직 활성화</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">목적</div>
+                            기본 운영 공간(Organization)과 사용자 접근 권한을 확정합니다.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">실행 작업</div>
+                            회원가입, 로그인, 조직 선택 후 Dashboard 진입.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">완료 신호</div>
+                            Dashboard, Billing, Proof 메뉴 접근 가능.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">고객 체감</div>
+                            “우리 회사 운영 단위로 서비스가 시작되었다”는 인지 확보.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                    <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">Step 2</div>
+                    <h2 class="text-lg font-semibold text-white mb-3">사이트 등록 및 1차 스캔 실행</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">목적</div>
+                            분석 대상 사이트를 GhostLink 데이터 체인에 연결합니다.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">실행 작업</div>
+                            사이트 URL 추가, 스캔 완료 확인, AI Score/Schema 확인.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">완료 신호</div>
+                            최소 1개 사이트가 Active 또는 Completed 상태.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">고객 체감</div>
+                            “AI 최적화가 실제 사이트 단위로 시작됨”을 수치로 확인.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                    <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">Step 3</div>
+                    <h2 class="text-lg font-semibold text-white mb-3">고객 사이트 물리 적용(Bridge Script 배포)</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">핵심 원칙</div>
+                            페이지별 중복 삽입이 아니라 공통 템플릿 또는 GTM에서 1회 배포.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">index.html 적용 기준</div>
+                            정적 단일 사이트는 `index.html` `&lt;/head&gt;` 직전 삽입 가능. 멀티 템플릿/SSR은 공통 레이아웃 배포가 정답.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">완료 신호</div>
+                            7일 내 Script Request/Bridge Event가 1회 이상 감지.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">고객 체감</div>
+                            “우리 사이트에 GhostLink가 물리적으로 붙었다”는 확신 확보.
+                        </div>
+                    </div>
+                    <a href="/docs/integration-guide?org_id={{ org_id }}"
+                        class="inline-flex mt-4 px-3 py-2 rounded-lg border border-cyan-500/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 text-sm font-semibold">
+                        Open Integration Guide
+                    </a>
+                </div>
+
+                <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                    <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">Step 4</div>
+                    <h2 class="text-lg font-semibold text-white mb-3">요금제 선택 및 결제</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">판단 기준</div>
+                            사이트 수, 월간 스캔량, 팀원 수, 보고서/자동화 필요 수준.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">추천 흐름</div>
+                            Free로 초기 증명 후 Starter/Pro/Business로 확장.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">완료 신호</div>
+                            Billing 화면에서 현재 플랜/한도 사용량 확인 가능.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">고객 체감</div>
+                            “비용 대비 운영 여력이 명확하다”는 공감 형성.
+                        </div>
+                    </div>
+                    <a href="/billing?org_id={{ org_id }}"
+                        class="inline-flex mt-4 px-3 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 text-sm font-semibold">
+                        Open Billing
+                    </a>
+                </div>
+
+                <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                    <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">Step 5</div>
+                    <h2 class="text-lg font-semibold text-white mb-3">효용 체감: Proof Center 실행</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">핵심 지표</div>
+                            Answer Capture Rate, Citation Rate, AI Assist Rate.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">실행 작업</div>
+                            Query Set 작성, Run 반복, before/after 비교.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">완료 신호</div>
+                            비교 가능한 완료 run 2회 이상 + KPI 변화 확인.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">고객 체감</div>
+                            “AI 검색 효율 개선이 실제로 증명된다”는 신뢰 확보.
+                        </div>
+                    </div>
+                    <a href="/proof?org_id={{ org_id }}"
+                        class="inline-flex mt-4 px-3 py-2 rounded-lg border border-cyan-500/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 text-sm font-semibold">
+                        Open Proof Center
+                    </a>
+                </div>
+
+                <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                    <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">Step 6</div>
+                    <h2 class="text-lg font-semibold text-white mb-3">개선 루프 운영</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">운영 루프</div>
+                            액션 생성 → 승인/반려 → 적용 → 지표 추적.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">거버넌스</div>
+                            민감 변경은 Approvals에서 승인 이력과 함께 관리.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">완료 신호</div>
+                            승인된 액션 이후 KPI 상승 상관관계 확인.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">고객 체감</div>
+                            “운영 개선이 반복 가능하다”는 안정감 확보.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                    <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">Step 7</div>
+                    <h2 class="text-lg font-semibold text-white mb-3">최종 이용자용 일일 PDF 보고서 배포</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">실행 작업</div>
+                            Daily Reports에서 날짜 선택 후 PDF 다운로드.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">보고 대상</div>
+                            마케팅/제품/경영진/고객사 담당자.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">완료 신호</div>
+                            일자별 PDF 산출물 보관 및 공유 완료.
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">고객 체감</div>
+                            “성과 보고가 자동화되어 운영 부담이 줄었다”는 가치 실감.
+                        </div>
+                    </div>
+                    <a href="/reports/daily?org_id={{ org_id }}"
+                        class="inline-flex mt-4 px-3 py-2 rounded-lg border border-violet-500/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25 text-sm font-semibold">
+                        Open Daily Reports
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

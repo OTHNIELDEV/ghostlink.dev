@@ -9,8 +9,9 @@ from app.db.engine import get_session
 from app.main import app
 from app.models.approval import ApprovalRequest
 from app.models.audit_log import AuditLog
-from app.models.billing import Subscription
+from app.models.billing import Subscription, UsageRecord
 from app.models.organization import Membership, Organization
+from app.models.site import Site
 from app.models.user import User
 
 
@@ -50,6 +51,18 @@ async def _add_member_to_org(org_id: int, user_id: int, role: str = "member") ->
         break
 
 
+async def _get_latest_site_id_by_org(org_id: int) -> int | None:
+    async for session in get_session():
+        row = (
+            await session.exec(
+                select(Site.id)
+                .where(Site.org_id == org_id)
+                .order_by(Site.id.desc())
+            )
+        ).first()
+        return row
+
+
 async def _cleanup(prefix: str) -> None:
     async for session in get_session():
         users = (
@@ -65,6 +78,18 @@ async def _cleanup(prefix: str) -> None:
         org_ids = [o.id for o in orgs if o.id is not None]
 
         if org_ids:
+            usage_rows = (
+                await session.exec(select(UsageRecord).where(UsageRecord.org_id.in_(org_ids)))
+            ).all()
+            for row in usage_rows:
+                await session.delete(row)
+
+            sites = (
+                await session.exec(select(Site).where(Site.org_id.in_(org_ids)))
+            ).all()
+            for row in sites:
+                await session.delete(row)
+
             audit_logs = (
                 await session.exec(select(AuditLog).where(AuditLog.org_id.in_(org_ids)))
             ).all()
@@ -174,6 +199,21 @@ def test_dashboard_and_approvals_page_show_pending_inbox(inbox_prefix: str):
         assert dashboard.status_code == 200
         assert "Pending Approval Inbox" in dashboard.text
         assert f"/approvals?org_id={org_id}" in dashboard.text
+
+        add_site = owner_client.post(
+            "/api/sites",
+            data={"url": f"https://{inbox_prefix}dash.example", "org_id": str(org_id)},
+        )
+        assert add_site.status_code == 200
+        site_id = asyncio.run(_get_latest_site_id_by_org(org_id))
+        assert site_id is not None
+
+        dashboard_with_site = owner_client.get(f"/dashboard?org_id={org_id}")
+        assert dashboard_with_site.status_code == 200
+        assert f"/api/sites/{site_id}/generate?org_id={org_id}" in dashboard_with_site.text
+
+        row_response = owner_client.get(f"/api/sites/{site_id}/row", params={"org_id": org_id})
+        assert row_response.status_code == 200
 
         inbox = owner_client.get(f"/approvals?org_id={org_id}")
         assert inbox.status_code == 200

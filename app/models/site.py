@@ -13,6 +13,7 @@ class Site(SiteBase, table=True):
     status: str = Field(default="pending")
     error_msg: Optional[str] = Field(default=None)
     custom_instruction: Optional[str] = Field(default=None)
+    preferred_language: Optional[str] = Field(default="auto", max_length=16)
 
     # Core Analysis Engine fields
     title: Optional[str] = Field(default=None)
@@ -51,9 +52,11 @@ class SiteRead(SiteBase):
     ai_score: int
     schema_type: Optional[str]
     seo_description: Optional[str]
+    preferred_language: Optional[str]
     created_at: datetime
     last_scanned_at: Optional[datetime]
 
 class SiteUpdate(SQLModel):
     custom_instruction: Optional[str] = None
     url: Optional[str] = None
+    preferred_language: Optional[str] = None

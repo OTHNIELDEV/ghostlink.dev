@@ -217,6 +217,7 @@ async def decide_next_action_v2(
     site_id: int,
     request: Request,
     strategy: str = "thompson",
+    ensure_candidates: bool = False,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
@@ -225,8 +226,9 @@ async def decide_next_action_v2(
 
     org_id = await resolve_org_id_from_request(request)
     await require_org_membership(session, user, org_id, roles={"owner", "admin"})
-    await _get_site_for_org(session, site_id, org_id)
+    site = await _get_site_for_org(session, site_id, org_id)
 
+    created_count = 0
     decision = await bandit_service.decide_next_action(
         session=session,
         org_id=org_id,
@@ -236,6 +238,23 @@ async def decide_next_action_v2(
         context={"source": "api"},
     )
     selected_action = decision.get("selected_action")
+    if ensure_candidates and not selected_action:
+        created = await optimization_service.generate_actions_for_site(
+            session=session,
+            site=site,
+            org_id=org_id,
+        )
+        created_count = len(created)
+        if created_count > 0:
+            decision = await bandit_service.decide_next_action(
+                session=session,
+                org_id=org_id,
+                site_id=site_id,
+                created_by_user_id=user.id,
+                strategy=strategy,
+                context={"source": "api_bootstrap"},
+            )
+            selected_action = decision.get("selected_action")
 
     await audit_service.log_event(
         session=session,
@@ -248,6 +267,7 @@ async def decide_next_action_v2(
             "strategy": decision.get("strategy"),
             "decision_id": decision.get("decision_id"),
             "selected_action_id": selected_action.id if selected_action else None,
+            "created_count": created_count,
         },
         commit=True,
     )
@@ -257,6 +277,7 @@ async def decide_next_action_v2(
         "site_id": site_id,
         "strategy": decision.get("strategy"),
         "decision_id": decision.get("decision_id"),
+        "created_count": created_count,
         "selected_action": _serialize_action(selected_action) if selected_action else None,
         "scored_candidates": decision.get("scored_candidates", []),
     }

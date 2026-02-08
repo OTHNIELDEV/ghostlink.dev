@@ -13,6 +13,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.db.engine import engine
 from app.models.site import Site
+from app.services.language_service import (
+    normalize_language_preference,
+    prompt_language_name,
+    resolve_effective_language_code,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -180,7 +185,28 @@ def _build_default_analysis(score: int, title: str | None, meta_description: str
     }
 
 
-async def analyze_with_ai(clean_text: str) -> dict:
+def _normalize_analysis_payload(
+    analysis: dict[str, Any] | None,
+    score: int,
+    title: str | None,
+    meta_description: str | None,
+    llms_txt: str,
+) -> dict[str, Any]:
+    if not isinstance(analysis, dict):
+        return _build_default_analysis(score, title, meta_description, llms_txt)
+
+    scores = analysis.get("scores") if isinstance(analysis.get("scores"), dict) else {}
+    analysis["scores"] = {
+        "usability": _clamp_score(scores.get("usability", score + 4)),
+        "seo": _clamp_score(scores.get("seo", score)),
+        "content_quality": _clamp_score(scores.get("content_quality", score - 4)),
+        # Canonical total score must match site.ai_score.
+        "total": _clamp_score(score),
+    }
+    return analysis
+
+
+async def analyze_with_ai(clean_text: str, language: str = "English") -> dict:
     if not _openai_client:
         return {
             "json_ld": {"@context": "https://schema.org", "@type": "WebSite"},
@@ -211,6 +237,7 @@ async def analyze_with_ai(clean_text: str) -> dict:
                         "`ai_visibility_score` (integer 0-100), "
                         "`analysis` (object with keys: scores{usability,seo,content_quality,total}, "
                         "summary_keywords, pros, cons, recommendations, ghostlink_impact).\n\n"
+                        f"All descriptive text must be written in {language}.\n\n"
                         f"{clean_text[:12000]}"
                     ),
                 },
@@ -236,7 +263,11 @@ async def analyze_with_ai(clean_text: str) -> dict:
         }
 
 
-async def process_site_background(site_id: int, db: AsyncSession | None = None):
+async def process_site_background(
+    site_id: int,
+    db: AsyncSession | None = None,
+    language: str | None = None,
+):
     owns_session = db is None
     session = db
 
@@ -262,7 +293,17 @@ async def process_site_background(site_id: int, db: AsyncSession | None = None):
 
         title, meta_description = _extract_metadata(html)
         clean_text = clean_html(html)
-        ai_result = await analyze_with_ai(clean_text)
+        normalized_preference = normalize_language_preference(language or site.preferred_language)
+        effective_language_code = resolve_effective_language_code(
+            preferred_language=normalized_preference,
+            site_url=site.url,
+        )
+        prompt_language = prompt_language_name(effective_language_code)
+        try:
+            ai_result = await analyze_with_ai(clean_text, language=prompt_language)
+        except TypeError:
+            # Backward compatibility for tests/monkeypatches with old signature.
+            ai_result = await analyze_with_ai(clean_text)
         if ai_result.get("error_msg"):
             site.status = "failed"
             site.error_msg = str(ai_result.get("error_msg"))
@@ -276,9 +317,13 @@ async def process_site_background(site_id: int, db: AsyncSession | None = None):
         json_ld_text = _normalize_json_ld(json_ld_data)
         llms_txt = str(ai_result.get("llms_txt", "") or "")
         score = _clamp_score(ai_result.get("ai_visibility_score", 0))
-        analysis = ai_result.get("analysis")
-        if not isinstance(analysis, dict) or not isinstance(analysis.get("scores"), dict):
-            analysis = _build_default_analysis(score, title, meta_description, llms_txt)
+        analysis = _normalize_analysis_payload(
+            analysis=ai_result.get("analysis"),
+            score=score,
+            title=title,
+            meta_description=meta_description,
+            llms_txt=llms_txt,
+        )
 
         site.title = title
         site.meta_description = meta_description
@@ -289,6 +334,7 @@ async def process_site_background(site_id: int, db: AsyncSession | None = None):
         site.error_msg = None
         site.last_scanned_at = datetime.utcnow()
         site.updated_at = datetime.utcnow()
+        site.preferred_language = normalized_preference
 
         # Backward compatibility for existing views/services.
         site.json_ld_content = json_ld_text

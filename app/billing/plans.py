@@ -4,7 +4,7 @@ from app.models.billing import Plan, PlanFeature
 PLAN_CONFIG: Dict[str, dict] = {
     "free": {
         "name": "Free",
-        "description": "Perfect for personal projects and trying out GhostLink",
+        "description": "Baseline setup for first AI visibility proof",
         "price_monthly": 0,
         "price_yearly": 0,
         "currency": "usd",
@@ -21,6 +21,7 @@ PLAN_CONFIG: Dict[str, dict] = {
             "api_access": False,
         },
         "features": [
+            PlanFeature(code="proof_center_basic", name="Proof Center (Basic)", description="Track baseline proof KPIs for one site", included=True),
             PlanFeature(code="ai_analysis", name="AI Site Analysis", description="AI-powered site analysis and optimization suggestions", included=True),
             PlanFeature(code="json_ld", name="JSON-LD Generation", description="Automatic structured data generation", included=True),
             PlanFeature(code="llms_txt", name="LLMs.txt Generation", description="AI-friendly site summary generation", included=True),
@@ -33,7 +34,7 @@ PLAN_CONFIG: Dict[str, dict] = {
     },
     "starter": {
         "name": "Starter",
-        "description": "For professionals and small businesses getting serious about AI optimization",
+        "description": "Weekly proof operations for teams running multiple sites",
         "price_monthly": 1900,
         "price_yearly": 1599,
         "currency": "usd",
@@ -50,6 +51,7 @@ PLAN_CONFIG: Dict[str, dict] = {
             "api_access": True,
         },
         "features": [
+            PlanFeature(code="proof_center_team", name="Proof Center (Team)", description="Track ACR/Citation/AI Assist across team workflows", included=True),
             PlanFeature(code="ai_analysis", name="AI Site Analysis", description="AI-powered site analysis and optimization suggestions", included=True),
             PlanFeature(code="json_ld", name="JSON-LD Generation", description="Automatic structured data generation", included=True),
             PlanFeature(code="llms_txt", name="LLMs.txt Generation", description="AI-friendly site summary generation", included=True),
@@ -65,7 +67,7 @@ PLAN_CONFIG: Dict[str, dict] = {
     },
     "pro": {
         "name": "Pro",
-        "description": "For growing businesses and agencies managing multiple sites",
+        "description": "Growth-stage proof engine with advanced optimization loops",
         "price_monthly": 4900,
         "price_yearly": 3999,
         "currency": "usd",
@@ -82,6 +84,7 @@ PLAN_CONFIG: Dict[str, dict] = {
             "api_access": True,
         },
         "features": [
+            PlanFeature(code="before_after_timeline", name="Before/After Timeline", description="Compare baseline vs latest answer outcomes", included=True),
             PlanFeature(code="ai_analysis", name="AI Site Analysis", description="AI-powered site analysis and optimization suggestions", included=True),
             PlanFeature(code="json_ld", name="JSON-LD Generation", description="Automatic structured data generation", included=True),
             PlanFeature(code="llms_txt", name="LLMs.txt Generation", description="AI-friendly site summary generation", included=True),
@@ -101,7 +104,7 @@ PLAN_CONFIG: Dict[str, dict] = {
     },
     "business": {
         "name": "Business",
-        "description": "For large organizations with advanced needs",
+        "description": "Revenue-linked proof and automation for large organizations",
         "price_monthly": 9900,
         "price_yearly": 7999,
         "currency": "usd",
@@ -120,6 +123,7 @@ PLAN_CONFIG: Dict[str, dict] = {
             "sla_guarantee": True,
         },
         "features": [
+            PlanFeature(code="roi_attribution", name="ROI Attribution Layer", description="Link AI proof metrics with conversion outcomes", included=True),
             PlanFeature(code="ai_analysis", name="AI Site Analysis", description="AI-powered site analysis and optimization suggestions", included=True),
             PlanFeature(code="json_ld", name="JSON-LD Generation", description="Automatic structured data generation", included=True),
             PlanFeature(code="llms_txt", name="LLMs.txt Generation", description="AI-friendly site summary generation", included=True),
@@ -141,7 +145,7 @@ PLAN_CONFIG: Dict[str, dict] = {
     },
     "enterprise": {
         "name": "Enterprise",
-        "description": "Custom solutions for large enterprises with specific requirements",
+        "description": "Custom enterprise program for AI visibility governance at scale",
         "price_monthly": 0,
         "price_yearly": 0,
         "currency": "usd",
@@ -162,6 +166,7 @@ PLAN_CONFIG: Dict[str, dict] = {
         },
         "features": [
             PlanFeature(code="everything_in_business", name="Everything in Business", description="All Business plan features included", included=True),
+            PlanFeature(code="executive_briefing", name="Executive Proof Briefing", description="Custom reporting package for leadership reviews", included=True),
             PlanFeature(code="custom_contract", name="Custom Contract", description="Flexible billing and contract terms", included=True),
             PlanFeature(code="dedicated_manager", name="Dedicated Account Manager", description="Your personal GhostLink specialist", included=True),
             PlanFeature(code="custom_development", name="Custom Development", description="Feature development on request", included=True),

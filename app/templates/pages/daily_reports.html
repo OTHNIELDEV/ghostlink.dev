@@ -1,0 +1,106 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    {% include 'components/sidebar.html' %}
+
+    <div class="flex-1 overflow-auto p-8 bg-slate-950">
+        <div class="max-w-6xl mx-auto space-y-8">
+            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-white">Daily Reports</h1>
+                    <p class="text-slate-400 mt-2">
+                        최종 서비스 이용자 공유용 일자별 PDF 리포트를 다운로드합니다.
+                    </p>
+                </div>
+                <form method="get" action="/reports/daily" class="flex items-end gap-2">
+                    <input type="hidden" name="org_id" value="{{ org_id }}">
+                    <div>
+                        <label class="text-xs uppercase tracking-wider text-slate-500">Report Date</label>
+                        <input type="date" name="date" value="{{ summary.report_date }}"
+                            class="mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+                    </div>
+                    <button type="submit"
+                        class="px-4 py-2 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm font-semibold">
+                        Apply
+                    </button>
+                    <a href="/api/v1/reports/daily.pdf?org_id={{ org_id }}&date={{ summary.report_date }}"
+                        class="px-4 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 text-sm font-semibold">
+                        Download PDF
+                    </a>
+                </form>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                <div class="glass border border-slate-700/60 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider">Sites</div>
+                    <div class="text-2xl font-bold text-white mt-1">{{ summary.site_count }}</div>
+                </div>
+                <div class="glass border border-slate-700/60 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider">Avg Visibility</div>
+                    <div class="text-2xl font-bold text-white mt-1">{{ summary.avg_visibility_score }}</div>
+                </div>
+                <div class="glass border border-slate-700/60 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider">AI Crawlers</div>
+                    <div class="text-2xl font-bold text-white mt-1">{{ summary.ai_crawler_visits }}</div>
+                </div>
+                <div class="glass border border-slate-700/60 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider">Proof ACR</div>
+                    <div class="text-2xl font-bold text-white mt-1">{{ summary.proof.answer_capture_rate_pct }}%</div>
+                </div>
+                <div class="glass border border-slate-700/60 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider">AI Assist</div>
+                    <div class="text-2xl font-bold text-white mt-1">{{ summary.attribution.ai_assist_rate_pct }}%</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="glass border border-slate-700/60 rounded-2xl p-5">
+                    <h2 class="text-base font-semibold text-white mb-3">Proof Metrics (Daily)</h2>
+                    <div class="space-y-2 text-sm text-slate-300">
+                        <div>Runs Completed: <span class="text-white font-semibold">{{ summary.proof.run_count }}</span></div>
+                        <div>Queries Scored: <span class="text-white font-semibold">{{ summary.proof.total_queries_scored }}</span></div>
+                        <div>Citation Rate: <span class="text-white font-semibold">{{ summary.proof.citation_rate_pct }}%</span></div>
+                        <div>Average Quality: <span class="text-white font-semibold">{{ summary.proof.average_quality_score }}</span></div>
+                    </div>
+                </div>
+                <div class="glass border border-slate-700/60 rounded-2xl p-5">
+                    <h2 class="text-base font-semibold text-white mb-3">Attribution (Daily)</h2>
+                    <div class="space-y-2 text-sm text-slate-300">
+                        <div>Total Events: <span class="text-white font-semibold">{{ summary.attribution.total_events }}</span></div>
+                        <div>Conversions: <span class="text-white font-semibold">{{ summary.attribution.conversions_total }}</span></div>
+                        <div>AI Assisted Conversions: <span class="text-white font-semibold">{{ summary.attribution.ai_assisted_conversions }}</span></div>
+                        <div>AI Assist Rate: <span class="text-white font-semibold">{{ summary.attribution.ai_assist_rate_pct }}%</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass border border-slate-700/60 rounded-2xl p-5">
+                <h2 class="text-base font-semibold text-white mb-3">Site Status Snapshot</h2>
+                <div class="overflow-auto">
+                    <table class="w-full text-left">
+                        <thead class="text-xs uppercase tracking-wider text-slate-500">
+                            <tr>
+                                <th class="py-2">Site</th>
+                                <th class="py-2">Status</th>
+                                <th class="py-2">Score</th>
+                                <th class="py-2">Schema</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800">
+                            {% for site in summary.sites %}
+                            <tr>
+                                <td class="py-2 text-sm text-slate-200">{{ site.url }}</td>
+                                <td class="py-2 text-sm text-slate-400">{{ site.status }}</td>
+                                <td class="py-2 text-sm text-slate-200">{{ site.ai_score }}</td>
+                                <td class="py-2 text-sm text-slate-400">{{ site.schema_type }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

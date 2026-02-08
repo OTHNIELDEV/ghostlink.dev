@@ -241,6 +241,16 @@ Authorization: Bearer gl_your_api_key
 - `POST /api/v1/attribution/snapshot` - Persist snapshot (owner/admin)
 - `GET /api/v1/attribution/snapshots` - List saved snapshots
 
+#### Onboarding OS (v1)
+- `GET /api/v1/onboarding/status` - Get org activation progress
+- `POST /api/v1/onboarding/complete-step` - Mark a step completed
+
+#### Proof Center (v1)
+- `GET /api/v1/proof/overview` - Compute measured proof KPIs (ACR/Citation/AI Assist)
+- `GET /api/v1/proof/before-after` - Compare baseline vs latest answer results
+- `POST /api/v1/proof/snapshots` - Persist proof snapshot (owner/admin)
+- `GET /api/v1/proof/snapshots` - List saved proof snapshots
+
 #### Knowledge Graph + Schema Copilot (v1)
 - `GET /api/v1/knowledge-graph/entities` - List entities
 - `POST /api/v1/knowledge-graph/entities` - Create entity (owner/admin)
@@ -263,6 +273,12 @@ Authorization: Bearer gl_your_api_key
 - `GET /api/v1/edge/sites/{site_id}/deployments` - List deployments
 - `POST /api/v1/edge/sites/{site_id}/deployments/{deployment_id}/rollback` - Roll back to prior deployment
 
+#### Product Pages
+- `GET /dashboard` - Org dashboard with onboarding and visibility scoreboards
+- `GET /report/{site_id}` - Site-level AIO report + optimization loop + integration status
+- `GET /proof` - Proof Center (ACR/Citation/AI Assist + before/after)
+- `GET /docs/integration-guide` - Customer integration guide for bridge script deployment
+
 ## Architecture
 
 ### Operational Docs
@@ -270,6 +286,8 @@ Authorization: Bearer gl_your_api_key
 - `docs/RBAC_POLICY_MATRIX.md` - Role policy matrix and endpoint permissions
 - `docs/STRIPE_EVENT_STATE_TRANSITIONS.md` - Stripe event/state transition reference
 - `docs/PHASE3_TOP2_EXECUTION_PLAN.md` - Priority innovation execution plan and API spec
+- `docs/CUSTOMER_SITE_INTEGRATION_GUIDE.md` - Customer site integration decision guide
+- `docs/CUSTOMER_CLARITY_AND_AI_EFFICIENCY_INNOVATION_PLAN_2026-02-08.md` - Product innovation roadmap
 
 ### Multi-tenant Design
 

@@ -34,29 +34,75 @@
                         site.url }}</a>
                 </p>
             </div>
-            <div class="flex items-center gap-4">
-                <div class="text-right">
-                    <p class="text-slate-400 text-sm mb-1 uppercase tracking-wider font-semibold">Total Score</p>
-                    <div
-                        class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-                        {{ analysis.scores.total if analysis.scores else site.ai_score }}
-                    </div>
+            {% set lang_options = language_options if language_options is defined else [
+                ('auto', 'Auto (Country Default)'),
+                ('en', 'English'),
+                ('ko', 'Korean (한국어)'),
+                ('ja', 'Japanese (日本語)'),
+                ('zh-cn', 'Chinese Simplified (简体中文)'),
+                ('zh-tw', 'Chinese Traditional (繁體中文)'),
+                ('es', 'Spanish (Español)'),
+                ('fr', 'French (Français)'),
+                ('de', 'German (Deutsch)'),
+                ('pt-br', 'Portuguese BR (Português)'),
+                ('it', 'Italian (Italiano)'),
+                ('ru', 'Russian (Русский)'),
+                ('ar', 'Arabic (العربية)'),
+                ('hi', 'Hindi (हिन्दी)'),
+                ('vi', 'Vietnamese (Tiếng Việt)'),
+                ('th', 'Thai (ไทย)'),
+                ('id', 'Indonesian (Bahasa Indonesia)'),
+                ('tr', 'Turkish (Türkçe)'),
+                ('nl', 'Dutch (Nederlands)'),
+                ('pl', 'Polish (Polski)')
+            ] %}
+            <div class="flex flex-col items-start md:items-end gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <select
+                        id="report-language"
+                        class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+                        {% for code, label in lang_options %}
+                        <option value="{{ code }}" {% if (site.preferred_language or 'auto') == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button
+                        class="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors"
+                        onclick="updateReportLanguage({{ site.id }}, {{ org_id }})">
+                        Apply to All Sites
+                    </button>
+                    <button
+                        class="px-3 py-2 rounded-lg text-xs font-semibold border border-emerald-500/40 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30 transition-colors"
+                        onclick="rescanSiteWithLanguage({{ site.id }}, {{ org_id }})">
+                        Rescan Now
+                    </button>
                 </div>
-                <!-- Grade Circle -->
-                <div class="relative w-24 h-24 flex items-center justify-center">
-                    <svg class="absolute inset-0 w-full h-full transform -rotate-90">
-                        <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="8" fill="transparent"
-                            class="text-slate-800" />
-                        <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="8" fill="transparent"
-                            class="text-emerald-500 transition-all duration-1000 ease-out" stroke-dasharray="251.2"
-                            stroke-dashoffset="{{ 251.2 - (251.2 * (analysis.scores.total if analysis.scores else site.ai_score) / 100) }}"
-                            stroke-linecap="round" />
-                    </svg>
-                    <span class="text-2xl font-bold text-white">
-                        {% set score = analysis.scores.total if analysis.scores else site.ai_score %}
-                        {% if score >= 90 %}A+{% elif score >= 80 %}A{% elif score >= 70 %}B{% elif score >= 60 %}C{%
-                        else %}D{% endif %}
-                    </span>
+                <div class="text-xs text-slate-500">
+                    Effective: {{ site.effective_language_label if site.effective_language_label is defined else 'English' }}
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <p class="text-slate-400 text-sm mb-1 uppercase tracking-wider font-semibold">Total Score</p>
+                        <div
+                            class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+                            {{ analysis.scores.total if analysis.scores else site.ai_score }}
+                        </div>
+                    </div>
+                    <!-- Grade Circle -->
+                    <div class="relative w-24 h-24 flex items-center justify-center">
+                        <svg class="absolute inset-0 w-full h-full transform -rotate-90">
+                            <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="8" fill="transparent"
+                                class="text-slate-800" />
+                            <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="8" fill="transparent"
+                                class="text-emerald-500 transition-all duration-1000 ease-out" stroke-dasharray="251.2"
+                                stroke-dashoffset="{{ 251.2 - (251.2 * (analysis.scores.total if analysis.scores else site.ai_score) / 100) }}"
+                                stroke-linecap="round" />
+                        </svg>
+                        <span class="text-2xl font-bold text-white">
+                            {% set score = analysis.scores.total if analysis.scores else site.ai_score %}
+                            {% if score >= 90 %}A+{% elif score >= 80 %}A{% elif score >= 70 %}B{% elif score >= 60 %}C{%
+                            else %}D{% endif %}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -78,8 +124,7 @@
             </p>
             <button
                 class="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                hx-post="/api/sites/{{ site.id }}/generate" hx-swap="none"
-                @click="$el.innerText = 'Scanning...'; $el.disabled = true; emitToast('Scan started. Results will appear shortly.');">
+                onclick="rescanSiteWithLanguage({{ site.id }}, {{ org_id }})">
                 Re-Scan Now
             </button>
         </div>
@@ -279,6 +324,103 @@
                     {% endif %}
                 </div>
 
+                <!-- Auto-Optimize Loop v2 -->
+                <div class="bg-slate-800/50 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-6">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+                        <div>
+                            <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                                <svg class="w-5 h-5 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 3v2m6-2v2M9 19v2m6-2v2M4 9h2m14 0h2M4 15h2m14 0h2M8 8h8v8H8z"></path>
+                                </svg>
+                                Auto-Optimize Loop v2
+                            </h3>
+                            <p class="text-sm text-slate-400 mt-1">
+                                Use bandit scoring to prioritize the next optimization action and learn from reward feedback.
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select id="bandit-strategy"
+                                class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+                                <option value="thompson">Thompson</option>
+                                <option value="ucb">UCB</option>
+                            </select>
+                            <button
+                                class="px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors text-sm font-semibold"
+                                onclick="decideOptimizationActionV2({{ site.id }}, {{ org_id }})">
+                                Decide Next (v2)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="p-4 rounded-xl bg-slate-900/50 border border-slate-700/60">
+                            <h4 class="text-sm font-semibold text-slate-200 mb-3">Pending Candidates</h4>
+                            {% set pending_actions = optimization_actions | selectattr('status', 'equalto', 'pending') | list %}
+                            {% if pending_actions %}
+                            <div class="space-y-2">
+                                {% for action in pending_actions %}
+                                <div class="flex items-start justify-between gap-3 p-3 rounded-lg border border-slate-700/70 bg-slate-950/50">
+                                    <div class="min-w-0">
+                                        <div class="text-xs text-cyan-300 mb-1">Action #{{ action.id }}</div>
+                                        <div class="text-sm text-slate-200 font-medium truncate">{{ action.title }}</div>
+                                    </div>
+                                    <button
+                                        class="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors shrink-0"
+                                        onclick="approveOptimizationAction({{ action.id }}, {{ org_id }})">
+                                        Approve
+                                    </button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-sm text-slate-400">No pending candidates. Generate actions first.</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="p-4 rounded-xl bg-slate-900/50 border border-slate-700/60">
+                            <h4 class="text-sm font-semibold text-slate-200 mb-3">Bandit Arms</h4>
+                            {% if bandit_arms %}
+                            <div class="space-y-2 max-h-72 overflow-auto pr-1">
+                                {% for arm in bandit_arms %}
+                                <div class="p-3 rounded-lg border border-slate-700/70 bg-slate-950/50">
+                                    <div class="flex items-start justify-between gap-3 mb-2">
+                                        <div class="min-w-0">
+                                            <div class="text-sm text-slate-100 font-medium truncate">{{ arm.title }}</div>
+                                            <div class="text-xs text-slate-400 mt-1">
+                                                pulls {{ arm.pulls }} · avg {{ '%.3f'|format(arm.average_reward) }} · status {{ arm.status }}
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <button
+                                                class="px-2 py-1 rounded text-[11px] border border-emerald-500/30 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"
+                                                onclick="recordOptimizationFeedback({{ arm.action_id }}, {{ org_id }}, 1.0)">
+                                                +1.0
+                                            </button>
+                                            <button
+                                                class="px-2 py-1 rounded text-[11px] border border-slate-500/30 bg-slate-700/40 text-slate-200 hover:bg-slate-700/60"
+                                                onclick="recordOptimizationFeedback({{ arm.action_id }}, {{ org_id }}, 0.0)">
+                                                +0.0
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% if arm.last_reward is not none %}
+                                    <div class="text-[11px] text-slate-500">
+                                        last reward {{ '%.3f'|format(arm.last_reward) }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-sm text-slate-400">
+                                No bandit arms yet. Run "Decide Next (v2)" after generating pending actions.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Technical Evidence (GhostLink Impact) -->
                 {% if analysis.ghostlink_impact %}
                 <div
@@ -301,9 +443,16 @@
                                 <h4
                                     class="text-base font-semibold text-emerald-400 group-hover:text-emerald-300 transition-colors">
                                     {{ impact.title }}</h4>
-                                <span
-                                    class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20">{{
-                                    impact.improvement }}</span>
+                                <div class="flex items-center gap-2">
+                                    <span
+                                        class="px-2 py-0.5 rounded-full text-[10px] font-semibold border {% if impact.evidence_type == 'measured' %}bg-cyan-500/15 text-cyan-300 border-cyan-500/35{% else %}bg-amber-500/15 text-amber-300 border-amber-500/35{% endif %}">
+                                        {{ impact.source_label }}
+                                    </span>
+                                    <span
+                                        class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20">
+                                        {{ impact.improvement }}
+                                    </span>
+                                </div>
                             </div>
                             <p class="text-slate-300 text-sm leading-relaxed">{{ impact.description }}</p>
                         </div>
@@ -330,6 +479,73 @@
                     </div>
                 </div>
 
+                <div id="integration-guide" class="bg-slate-800/50 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-6">
+                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-5">
+                        <div>
+                            <h3 class="text-lg font-semibold text-white">Website Integration Guide</h3>
+                            <p class="text-sm text-slate-400 mt-1">
+                                GhostLink를 고객 사이트에 물리적으로 적용하는 권장 방식입니다.
+                            </p>
+                        </div>
+                        <div class="text-xs {% if installation_status.detected %}text-emerald-300{% else %}text-amber-300{% endif %}">
+                            {% if installation_status.detected %}
+                            Installation detected (last 7d)
+                            {% else %}
+                            Installation not detected (last 7d)
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-5">
+                        <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                            <div class="text-xs uppercase tracking-wider text-emerald-300 mb-2">Recommended</div>
+                            <div class="text-sm font-semibold text-slate-100">Global Layout or Tag Manager</div>
+                            <p class="text-xs text-slate-300 mt-2">
+                                가장 안정적입니다. 사이트의 공통 템플릿 head 또는 GTM Custom HTML로 한 번만 배포하세요.
+                            </p>
+                        </div>
+                        <div class="rounded-xl border border-slate-700/70 bg-slate-900/50 p-4">
+                            <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Static Site</div>
+                            <div class="text-sm font-semibold text-slate-100">index.html head에 삽입</div>
+                            <p class="text-xs text-slate-300 mt-2">
+                                단일 정적 사이트면 `index.html`의 `&lt;/head&gt;` 직전에 넣는 방식이 유효합니다.
+                            </p>
+                        </div>
+                        <div class="rounded-xl border border-slate-700/70 bg-slate-900/50 p-4">
+                            <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Advanced</div>
+                            <div class="text-sm font-semibold text-slate-100">Edge Deployments API</div>
+                            <p class="text-xs text-slate-300 mt-2">
+                                운영 자동화가 필요하면 Edge artifact/deployment API로 환경별(staging/production) 배포를 관리하세요.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-700/70 bg-slate-900/50 p-4 mb-4">
+                        <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Paste This Script Once</div>
+                        <pre class="text-xs text-cyan-200 overflow-x-auto"><code>&lt;script async src="{{ bridge_script_url }}"&gt;&lt;/script&gt;</code></pre>
+                        <div class="flex flex-wrap items-center gap-2 mt-3">
+                            <button
+                                class="px-3 py-1.5 rounded-md text-xs font-semibold bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+                                onclick="copyScript('{{ bridge_script_url }}')">
+                                Copy Script Tag
+                            </button>
+                            <a href="/docs/integration-guide?org_id={{ org_id }}&site_id={{ site.id }}"
+                                class="px-3 py-1.5 rounded-md text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-600 hover:bg-slate-700 transition-colors">
+                                Open Full Guide
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-400">
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
+                            Script requests (7d): <span class="text-slate-200 font-semibold">{{ installation_status.script_request_count_7d }}</span>
+                        </div>
+                        <div class="rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
+                            Bridge events (7d): <span class="text-slate-200 font-semibold">{{ installation_status.bridge_event_count_7d }}</span>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
         {% endif %}
@@ -338,6 +554,53 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    function getReportSelectedLanguage() {
+        const select = document.getElementById('report-language');
+        return select ? select.value : 'auto';
+    }
+
+    async function updateReportLanguage(siteId, orgId) {
+        const language = getReportSelectedLanguage();
+        const response = await fetch('/api/sites/language', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `org_id=${encodeURIComponent(orgId)}&language=${encodeURIComponent(language)}&rescan=true`
+        });
+
+        let payload = {};
+        try {
+            payload = await response.json();
+        } catch (_) {
+            payload = {};
+        }
+
+        if (!response.ok) {
+            const detail = typeof payload.detail === 'string' ? payload.detail : 'Failed to update language.';
+            emitToast(detail);
+            return;
+        }
+        const started = Number(payload.rescan_started || 0);
+        const skipped = Number(payload.rescan_skipped_quota || 0);
+        emitToast(`Applied to all sites. Rescan started: ${started}, skipped: ${skipped}`);
+        setTimeout(() => window.location.reload(), 150);
+    }
+
+    async function rescanSiteWithLanguage(siteId, orgId) {
+        const language = getReportSelectedLanguage();
+        const response = await fetch(`/api/sites/${siteId}/generate?org_id=${encodeURIComponent(orgId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `language=${encodeURIComponent(language)}`
+        });
+
+        if (!response.ok) {
+            emitToast('Failed to start rescan.');
+            return;
+        }
+        emitToast('Rescan started');
+        setTimeout(() => window.location.reload(), 300);
+    }
+
     async function generateOptimizationActions(siteId, orgId) {
         const response = await fetch(`/api/v1/optimizations/sites/${siteId}/actions/generate`, {
             method: 'POST',
@@ -375,6 +638,64 @@
             return;
         }
         window.location.reload();
+    }
+
+    async function decideOptimizationActionV2(siteId, orgId) {
+        const strategyEl = document.getElementById('bandit-strategy');
+        const strategy = strategyEl ? strategyEl.value : 'thompson';
+        const response = await fetch(
+            `/api/v1/optimizations/sites/${siteId}/actions/decide-v2?org_id=${encodeURIComponent(orgId)}&strategy=${encodeURIComponent(strategy)}&ensure_candidates=true`,
+            { method: 'POST' }
+        );
+
+        let payload = {};
+        try {
+            payload = await response.json();
+        } catch (_) {
+            payload = {};
+        }
+
+        if (!response.ok) {
+            const detail = typeof payload.detail === 'string' ? payload.detail : 'Failed to run v2 decision.';
+            emitToast(detail);
+            return;
+        }
+
+        if (payload.selected_action && payload.selected_action.id) {
+            const createdCount = Number(payload.created_count || 0);
+            const selectedLabel = payload.selected_action.title || `Action #${payload.selected_action.id}`;
+            if (createdCount > 0) {
+                emitToast(`v2 selected: ${selectedLabel} (generated ${createdCount} new candidates)`);
+            } else {
+                emitToast(`v2 selected: ${selectedLabel}`);
+            }
+        } else {
+            emitToast('No pending actions available for v2, even after auto-generation.');
+        }
+        setTimeout(() => window.location.reload(), 250);
+    }
+
+    async function recordOptimizationFeedback(actionId, orgId, reward) {
+        const response = await fetch(`/api/v1/optimizations/actions/${actionId}/feedback?org_id=${encodeURIComponent(orgId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reward, notes: 'report_ui_feedback' })
+        });
+
+        let payload = {};
+        try {
+            payload = await response.json();
+        } catch (_) {
+            payload = {};
+        }
+
+        if (!response.ok) {
+            const detail = typeof payload.detail === 'string' ? payload.detail : 'Failed to record feedback.';
+            emitToast(detail);
+            return;
+        }
+        emitToast('Feedback recorded');
+        setTimeout(() => window.location.reload(), 250);
     }
 
     {% if analysis.scores %}

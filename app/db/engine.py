@@ -36,6 +36,8 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
         await conn.run_sync(_ensure_site_columns)
+        await conn.run_sync(_ensure_organization_columns)
+        await conn.run_sync(_ensure_user_columns)
 
 
 def _ensure_site_columns(sync_conn):
@@ -49,9 +51,42 @@ def _ensure_site_columns(sync_conn):
         "meta_description": "VARCHAR",
         "json_ld": "TEXT",
         "llms_txt": "TEXT",
+        "preferred_language": "VARCHAR(16) DEFAULT 'auto'",
     }
 
     for column_name, column_type in additions.items():
         if column_name in existing:
             continue
         sync_conn.execute(text(f"ALTER TABLE site ADD COLUMN {column_name} {column_type}"))
+
+
+def _ensure_organization_columns(sync_conn):
+    inspector = inspect(sync_conn)
+    if "organization" not in inspector.get_table_names():
+        return
+
+    existing = {col["name"] for col in inspector.get_columns("organization")}
+    additions = {
+        "preferred_language": "VARCHAR(16) DEFAULT 'auto'",
+    }
+
+    for column_name, column_type in additions.items():
+        if column_name in existing:
+            continue
+        sync_conn.execute(text(f"ALTER TABLE organization ADD COLUMN {column_name} {column_type}"))
+
+
+def _ensure_user_columns(sync_conn):
+    inspector = inspect(sync_conn)
+    if "user" not in inspector.get_table_names():
+        return
+
+    existing = {col["name"] for col in inspector.get_columns("user")}
+    additions = {
+        "preferred_ui_language": "VARCHAR(16) DEFAULT 'auto'",
+    }
+
+    for column_name, column_type in additions.items():
+        if column_name in existing:
+            continue
+        sync_conn.execute(text(f"ALTER TABLE user ADD COLUMN {column_name} {column_type}"))

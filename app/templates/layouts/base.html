@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="{{ ui_language_resolved if ui_language_resolved is defined else 'en' }}" class="dark">
 
 <head>
     <meta charset="UTF-8">
@@ -162,6 +162,28 @@
             }));
         }
 
+        function extractErrorMessageFromXhr(xhr) {
+            if (!xhr) return null;
+            const raw = xhr.responseText || "";
+            if (!raw) {
+                return xhr.status ? `Request failed (${xhr.status})` : "Request failed";
+            }
+            try {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed.detail === 'string' && parsed.detail.trim()) return parsed.detail;
+                if (parsed.detail && typeof parsed.detail === 'object') {
+                    if (typeof parsed.detail.message === 'string' && parsed.detail.message.trim()) {
+                        return parsed.detail.message;
+                    }
+                    return "Request failed due to policy validation.";
+                }
+                if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message;
+            } catch (_) {
+                // Ignore parse errors and fallback.
+            }
+            return raw.slice(0, 180);
+        }
+
         function copyScript(scriptUrl) {
             const resolvedUrl = new URL(scriptUrl, window.location.origin).toString();
             const scriptTag = `<script async src="${resolvedUrl}"><\/script>`;
@@ -209,6 +231,15 @@
                 onFailure();
             }
         }
+
+        document.addEventListener('htmx:responseError', (event) => {
+            const msg = extractErrorMessageFromXhr(event?.detail?.xhr);
+            emitToast(msg || 'Request failed');
+        });
+
+        document.addEventListener('htmx:sendError', () => {
+            emitToast('Network error. Please retry.');
+        });
     </script>
 
 </body>

@@ -2,6 +2,12 @@ from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from sqlmodel import Session, select
 from app.db.engine import get_session
 from app.models.site import Site
+from app.services.language_service import (
+    LANGUAGE_OPTIONS,
+    language_label,
+    normalize_language_preference,
+    resolve_effective_language_code,
+)
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.templating import Jinja2Templates
 
@@ -11,6 +17,18 @@ import random
 from datetime import datetime, timedelta
 
 router = APIRouter()
+
+
+def _hydrate_site_language(site: Site, accept_language: str | None = None) -> None:
+    preferred = normalize_language_preference(site.preferred_language)
+    effective = resolve_effective_language_code(
+        preferred_language=preferred,
+        site_url=site.url,
+        accept_language=accept_language,
+    )
+    site.preferred_language = preferred
+    object.__setattr__(site, "effective_language_code", effective)
+    object.__setattr__(site, "effective_language_label", language_label(effective))
 
 @router.post("/dashboard/sites/{site_id}/update_json", response_class=HTMLResponse)
 async def update_site_json(
@@ -32,9 +50,10 @@ async def update_site_json(
         session.add(site)
         await session.commit()
         await session.refresh(site)
+        _hydrate_site_language(site, request.headers.get("accept-language"))
         
         # Return the updated card or a success toast
-        context = {"request": request, "site": site}
+        context = {"request": request, "site": site, "language_options": LANGUAGE_OPTIONS}
         return templates.TemplateResponse("components/site_card.html", context)
     except json.JSONDecodeError:
          # In a real app, maybe return a partial with error or an OOB swap for error message

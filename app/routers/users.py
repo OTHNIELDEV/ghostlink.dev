@@ -1,4 +1,3 @@
-from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -8,6 +7,7 @@ from app.models.user import User
 from app.core.security import get_password_hash
 from jose import jwt, JWTError
 from app.core.config import settings
+from app.services.ui_language_service import normalize_ui_language
 from starlette.templating import Jinja2Templates
 
 router = APIRouter()
@@ -62,3 +62,31 @@ async def update_profile(
         "active_page": "profile",
         "success": "Profile updated successfully"
     })
+
+
+@router.post("/ui-language")
+async def update_ui_language(
+    language: str = Form("auto"),
+    next_url: str = Form("/dashboard"),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    normalized = normalize_ui_language(language)
+    user.preferred_ui_language = normalized
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    safe_next = next_url if next_url.startswith("/") else "/dashboard"
+    response = RedirectResponse(url=safe_next, status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        key="ghostlink_ui_language",
+        value=normalized,
+        max_age=60 * 60 * 24 * 365,
+        httponly=False,
+        samesite="lax",
+    )
+    return response

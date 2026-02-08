@@ -14,6 +14,7 @@ class User(SQLModel, table=True):
     
     provider: Optional[str] = None
     provider_id: Optional[str] = None
+    preferred_ui_language: Optional[str] = Field(default="auto", max_length=16)
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

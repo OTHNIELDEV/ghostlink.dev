@@ -1,0 +1,106 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    {% include 'components/sidebar.html' %}
+
+    <div class="flex-1 overflow-auto p-8 bg-slate-950">
+        <div class="max-w-5xl mx-auto space-y-8">
+            <div>
+                <h1 class="text-3xl font-bold text-white">GhostLink Integration Guide</h1>
+                <p class="text-slate-400 mt-2">
+                    고객 홈페이지에 GhostLink를 물리적으로 적용하는 권장 절차입니다.
+                </p>
+            </div>
+
+            <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                <h2 class="text-lg font-semibold text-white mb-4">1) One-Time Script Installation</h2>
+                {% if bridge_script_url %}
+                <div class="rounded-xl border border-slate-700/70 bg-slate-900/60 p-4 mb-4">
+                    <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Paste this once</div>
+                    <pre class="text-xs text-cyan-200 overflow-x-auto"><code>&lt;script async src="{{ bridge_script_url }}"&gt;&lt;/script&gt;</code></pre>
+                    <button
+                        class="mt-3 px-3 py-1.5 rounded-md text-xs font-semibold bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+                        onclick="copyScript('{{ bridge_script_url }}')">
+                        Copy Script Tag
+                    </button>
+                </div>
+                {% else %}
+                <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                    먼저 사이트를 등록하면 사이트 전용 script URL이 생성됩니다.
+                </div>
+                {% endif %}
+                <p class="text-sm text-slate-300">
+                    원칙: 스크립트는 페이지마다 중복 삽입하지 말고, 사이트 공통 레이아웃에서 한 번만 로드하세요.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="glass border border-emerald-500/30 rounded-xl p-5">
+                    <div class="text-xs uppercase tracking-wider text-emerald-300 mb-2">Recommended</div>
+                    <h3 class="text-sm font-semibold text-white">Global Template / GTM</h3>
+                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                        WordPress, Shopify, Next.js, 사내 CMS처럼 템플릿 개념이 있으면 공통 head에 삽입하는 방식이 가장 안전합니다.
+                    </p>
+                </div>
+                <div class="glass border border-slate-700/70 rounded-xl p-5">
+                    <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Static Website</div>
+                    <h3 class="text-sm font-semibold text-white">index.html 삽입</h3>
+                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                        정적 사이트(단일 배포 HTML)라면 `index.html`의 `&lt;/head&gt;` 직전에 삽입해도 됩니다.
+                    </p>
+                </div>
+                <div class="glass border border-slate-700/70 rounded-xl p-5">
+                    <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Advanced Ops</div>
+                    <h3 class="text-sm font-semibold text-white">Edge Deployments API</h3>
+                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                        환경별(staging/production) 자동 배포가 필요하면 Edge artifact/deployment API를 사용하세요.
+                    </p>
+                </div>
+            </div>
+
+            <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                <h2 class="text-lg font-semibold text-white mb-4">2) index.html 적용이 정답인 경우 / 아닌 경우</h2>
+                <div class="space-y-3 text-sm text-slate-300">
+                    <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3">
+                        <div class="font-semibold text-emerald-300 mb-1">index.html 적용이 적합한 경우</div>
+                        <div>정적 사이트, 빌드 결과가 단일 HTML 엔트리, 페이지 공통 레이아웃이 사실상 index.html 하나인 경우.</div>
+                    </div>
+                    <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3">
+                        <div class="font-semibold text-amber-300 mb-1">index.html 단독 적용이 부적합한 경우</div>
+                        <div>멀티 템플릿 CMS, SSR 프레임워크, 마이크로 프론트엔드, 다중 도메인/서브도메인 운용 환경.</div>
+                    </div>
+                    <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3">
+                        <div class="font-semibold text-cyan-300 mb-1">실무 권장 해답</div>
+                        <div>가능하면 템플릿 또는 태그매니저(GTM)에서 공통 배포하고, 배포 후 GhostLink에서 7일 이벤트 감지로 검증합니다.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass border border-slate-700/60 rounded-2xl p-6">
+                <h2 class="text-lg font-semibold text-white mb-4">3) Validation Checklist</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                        Script requests (7d):
+                        <span class="text-white font-semibold">{{ installation_status.script_request_count_7d }}</span>
+                    </div>
+                    <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                        Bridge events (7d):
+                        <span class="text-white font-semibold">{{ installation_status.bridge_event_count_7d }}</span>
+                    </div>
+                    <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                        Status:
+                        <span class="font-semibold {% if installation_status.detected %}text-emerald-300{% else %}text-amber-300{% endif %}">
+                            {% if installation_status.detected %}Detected{% else %}Not Detected{% endif %}
+                        </span>
+                    </div>
+                    <div class="rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-slate-300">
+                        Next:
+                        <a href="/proof?org_id={{ org_id }}" class="text-cyan-300 hover:text-cyan-200">Run Proof Center</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

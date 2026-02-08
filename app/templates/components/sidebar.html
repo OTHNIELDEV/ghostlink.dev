@@ -1,7 +1,8 @@
 <aside class="w-64 glass border-r border-slate-700/50 hidden md:flex flex-col">
+    {% set tr = i18n if i18n is defined else {} %}
     <div class="p-6">
         {% set org_query = ('?org_id=' ~ org_id) if org_id else '' %}
-        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Menu</h2>
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">{{ tr.get('sidebar_menu', 'Menu') }}</h2>
         <nav class="space-y-2">
             <a href="/dashboard{{ org_query }}"
                 class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'dashboard' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
@@ -11,7 +12,7 @@
                         d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
                     </path>
                 </svg>
-                Sites
+                {{ tr.get('sidebar_sites', 'Sites') }}
             </a>
             <a href="/approvals{{ org_query }}"
                 class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'approvals' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
@@ -21,7 +22,7 @@
                         d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z">
                     </path>
                 </svg>
-                <span>Approvals</span>
+                <span>{{ tr.get('sidebar_approvals', 'Approvals') }}</span>
                 {% if pending_approval_count and pending_approval_count > 0 %}
                 <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                     {{ pending_approval_count }}
@@ -38,7 +39,34 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                 </svg>
-                Settings
+                {{ tr.get('sidebar_settings', 'Settings') }}
+            </a>
+            <a href="/proof{{ org_query }}"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'proof' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
+                <svg class="w-5 h-5 {% if active_page == 'proof' %}text-emerald-500{% endif %}" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 13l4-4 4 4 8-8 2 2-10 10-6-6-2 2z"></path>
+                </svg>
+                {{ tr.get('sidebar_proof_center', 'Proof Center') }}
+            </a>
+            <a href="/manual{{ org_query }}"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'manual' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
+                <svg class="w-5 h-5 {% if active_page == 'manual' %}text-emerald-500{% endif %}" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6.253v13m0-13C10.832 5.483 9.246 5 7.5 5C4.462 5 2 7.462 2 10.5v8.25A2.25 2.25 0 004.25 21h15.5A2.25 2.25 0 0022 18.75V10.5C22 7.462 19.538 5 16.5 5c-1.746 0-3.332.483-4.5 1.253z"></path>
+                </svg>
+                {{ tr.get('sidebar_manual', 'Manual') }}
+            </a>
+            <a href="/reports/daily{{ org_query }}"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'reports' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
+                <svg class="w-5 h-5 {% if active_page == 'reports' %}text-emerald-500{% endif %}" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 17v-6m3 6V7m3 10v-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V20a2 2 0 01-2 2z"></path>
+                </svg>
+                {{ tr.get('sidebar_daily_reports', 'Daily Reports') }}
             </a>
             <a href="/billing{{ org_query }}"
                 class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'billing' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
@@ -48,14 +76,14 @@
                         d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z">
                     </path>
                 </svg>
-                Billing
+                {{ tr.get('sidebar_billing', 'Billing') }}
             </a>
         </nav>
     </div>
     <div class="mt-auto p-6 border-t border-slate-700/50">
-        <div class="text-xs text-slate-500">Logged in as</div>
+        <div class="text-xs text-slate-500">{{ tr.get('sidebar_logged_in_as', 'Logged in as') }}</div>
         <div class="font-medium text-white truncate">
-            {{ (user.email if user else 'Guest') }}
+            {{ (user.email if user else tr.get('sidebar_guest', 'Guest')) }}
         </div>
     </div>
 </aside>

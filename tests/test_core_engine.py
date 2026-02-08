@@ -197,6 +197,57 @@ def test_process_site_background_success_updates_site(monkeypatch: pytest.Monkey
         asyncio.run(_cleanup_sites(prefix))
 
 
+def test_process_site_background_aligns_analysis_total_with_ai_score(monkeypatch: pytest.MonkeyPatch):
+    prefix = f"pytest_coreeng_{uuid.uuid4().hex[:8]}_"
+    url = f"https://{prefix}site.example"
+    asyncio.run(init_db())
+
+    async def _fake_fetch(_url: str):
+        return """
+        <html>
+          <head>
+            <title>Ghost Product</title>
+            <meta name="description" content="AI-ready content layer">
+          </head>
+          <body>
+            <h1>Ghost Product</h1>
+            <p>Semantic optimization content.</p>
+          </body>
+        </html>
+        """
+
+    async def _fake_analyze(_clean_text: str):
+        return {
+            "json_ld": {"@context": "https://schema.org", "@type": "WebSite", "name": "Ghost Product"},
+            "llms_txt": "Ghost Product summary for AI agents.",
+            "ai_visibility_score": 91,
+            "analysis": {
+                "scores": {
+                    "usability": 88,
+                    "seo": 86,
+                    "content_quality": 80,
+                    "total": 12,
+                }
+            },
+        }
+
+    monkeypatch.setattr(core_engine, "fetch_page_content", _fake_fetch)
+    monkeypatch.setattr(core_engine, "analyze_with_ai", _fake_analyze)
+
+    site = asyncio.run(_create_site(url))
+    try:
+        assert site.id is not None
+        asyncio.run(core_engine.process_site_background(site.id))
+        saved = asyncio.run(_get_site(site.id))
+        assert saved is not None
+        assert saved.ai_score == 91
+        assert saved.ai_analysis_json is not None
+        analysis = json.loads(saved.ai_analysis_json)
+        assert analysis["scores"]["total"] == 91
+    finally:
+        asyncio.run(_cleanup_sites(prefix))
+
+
 def test_process_site_background_fetch_failure_sets_failed(monkeypatch: pytest.MonkeyPatch):
     prefix = f"pytest_coreeng_{uuid.uuid4().hex[:8]}_"
     url = f"https://{prefix}site.example"

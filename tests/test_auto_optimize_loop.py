@@ -170,6 +170,12 @@ def test_auto_optimize_loop_generate_approve_reject(optimize_prefix: str, monkey
         listed_actions = listed.json()["actions"]
         assert listed_actions
 
+        report_page = client.get(f"/report/{site.id}", params={"org_id": org_id})
+        assert report_page.status_code == 200
+        assert "Auto-Optimize Loop v1" in report_page.text
+        assert "Auto-Optimize Loop v2" in report_page.text
+        assert "Decide Next (v2)" in report_page.text
+
         first_action_id = listed_actions[0]["id"]
         approve = client.post(
             f"/api/v1/optimizations/actions/{first_action_id}/approve",
@@ -200,3 +206,40 @@ def test_auto_optimize_loop_generate_approve_reject(optimize_prefix: str, monkey
             )
             assert reject.status_code == 200
             assert reject.json()["status"] == "rejected"
+
+
+def test_decide_v2_bootstraps_candidates_when_pending_empty(optimize_prefix: str):
+    email = f"{optimize_prefix}owner_v2@example.com"
+
+    with TestClient(app) as client:
+        register = client.post(
+            "/auth/register",
+            data={"email": email, "password": PASSWORD, "full_name": "Optimize Owner V2"},
+            follow_redirects=False,
+        )
+        assert register.status_code == 303
+
+        org_id = asyncio.run(_get_org_id_by_email(email))
+        user = asyncio.run(_get_user_by_email(email))
+        assert org_id is not None
+        assert user is not None and user.id is not None
+
+        site = asyncio.run(_create_site(org_id=org_id, owner_id=user.id, url=f"https://{optimize_prefix}site-v2.example"))
+        assert site.id is not None
+
+        initial_actions = client.get(
+            f"/api/v1/optimizations/sites/{site.id}/actions",
+            params={"org_id": org_id},
+        )
+        assert initial_actions.status_code == 200
+        assert initial_actions.json()["actions"] == []
+
+        decided = client.post(
+            f"/api/v1/optimizations/sites/{site.id}/actions/decide-v2",
+            params={"org_id": org_id, "strategy": "thompson", "ensure_candidates": "true"},
+        )
+        assert decided.status_code == 200, decided.text
+        payload = decided.json()
+        assert payload.get("created_count", 0) >= 1
+        assert payload.get("selected_action") is not None
+        assert payload["selected_action"]["status"] == "pending"

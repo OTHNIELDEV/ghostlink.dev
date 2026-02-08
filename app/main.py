@@ -24,7 +24,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.routers import (
     pages, sites, bridge, auth, users, dashboard,
     billing, organizations, webhooks, api_keys, optimizations, approvals, audit_logs,
-    answer_capture, attribution, knowledge_graph, compliance, edge
+    answer_capture, attribution, knowledge_graph, compliance, edge, onboarding, proof, reports
 )
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
@@ -65,3 +65,6 @@ app.include_router(attribution.router, prefix=settings.API_V1_STR)
 app.include_router(knowledge_graph.router, prefix=settings.API_V1_STR)
 app.include_router(compliance.router, prefix=settings.API_V1_STR)
 app.include_router(edge.router, prefix=settings.API_V1_STR)
+app.include_router(onboarding.router, prefix=settings.API_V1_STR)
+app.include_router(proof.router, prefix=settings.API_V1_STR)
+app.include_router(reports.router, prefix=settings.API_V1_STR)

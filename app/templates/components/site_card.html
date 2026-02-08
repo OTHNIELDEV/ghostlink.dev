@@ -1,6 +1,6 @@
 <div class="group relative bg-slate-900 border border-slate-700/50 hover:border-emerald-500/50 rounded-xl p-5 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-900/10"
     id="site-card-{{ site.id }}" {% if site.status=='processing' or site.status=='pending' %}
-    hx-get="/api/sites/{{ site.id }}/card" hx-trigger="every 2s" hx-swap="outerHTML" {% endif %}>
+    hx-get="/api/sites/{{ site.id }}/card?org_id={{ site.org_id }}" hx-trigger="every 2s" hx-swap="outerHTML" {% endif %}>
 
     <!-- Header: Status & Actions -->
     <div class="flex justify-between items-start mb-4">
@@ -38,7 +38,7 @@
                     </path>
                 </svg>
             </button>
-            <button hx-delete="/api/sites/{{ site.id }}" hx-target="#site-card-{{ site.id }}" hx-swap="outerHTML"
+            <button hx-delete="/api/sites/{{ site.id }}?org_id={{ site.org_id }}" hx-target="#site-card-{{ site.id }}" hx-swap="outerHTML"
                 hx-confirm="Are you sure you want to delete this site?"
                 class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
                 title="Delete Site">
@@ -91,7 +91,7 @@
 
     <!-- Action Buttons -->
     <div class="grid grid-cols-2 gap-2">
-        <a href="/report/{{ site.id }}"
+        <a href="/report/{{ site.id }}?org_id={{ site.org_id }}"
             class="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-sm font-medium border border-emerald-500/20 hover:bg-emerald-500/20 transition-all">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -100,7 +100,8 @@
             </svg>
             Analytics
         </a>
-        <button hx-post="/api/sites/{{ site.id }}/generate" hx-target="#site-card-{{ site.id }}" hx-swap="outerHTML"
+        <button hx-post="/api/sites/{{ site.id }}/generate?org_id={{ site.org_id }}" hx-target="#site-card-{{ site.id }}" hx-swap="outerHTML"
+            hx-on::after-request="if (event.detail.successful) { emitToast('Rescan started'); }"
             class="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm font-medium border border-slate-700 hover:bg-slate-700 transition-all">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

@@ -23,6 +23,8 @@ from app.models.innovation import (
     AnswerCaptureResult,
     AttributionEvent,
     AttributionSnapshot,
+    OnboardingProgress,
+    ProofSnapshot,
 )
 from app.models.innovation_plus import (
     OptimizationBanditArm,
@@ -54,6 +56,8 @@ __all__ = [
     "AnswerCaptureResult",
     "AttributionEvent",
     "AttributionSnapshot",
+    "OnboardingProgress",
+    "ProofSnapshot",
     "OptimizationBanditArm",
     "OptimizationBanditDecision",
     "BrandEntity",

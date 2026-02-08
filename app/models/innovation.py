@@ -106,3 +106,37 @@ class AttributionSnapshot(SQLModel, table=True):
     metadata_json: str = Field(default="{}")
 
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class OnboardingProgress(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    org_id: int = Field(index=True)
+    step_key: str = Field(index=True)
+    status: str = Field(default="completed", index=True)
+    completed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+    completed_at: Optional[datetime] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"onupdate": datetime.utcnow},
+    )
+
+
+class ProofSnapshot(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    org_id: int = Field(index=True)
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+
+    period_start: datetime = Field(index=True)
+    period_end: datetime = Field(index=True)
+    total_queries_scored: int = Field(default=0)
+    answer_capture_rate_pct: float = Field(default=0.0)
+    citation_rate_pct: float = Field(default=0.0)
+    average_quality_score: float = Field(default=0.0)
+    ai_assist_rate_pct: float = Field(default=0.0)
+    conversions_total: int = Field(default=0)
+    ai_assisted_conversions: int = Field(default=0)
+    confidence_level: str = Field(default="low", index=True)
+    metadata_json: str = Field(default="{}")
+
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)

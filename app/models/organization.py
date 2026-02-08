@@ -9,6 +9,7 @@ class Organization(SQLModel, table=True):
     description: Optional[str] = None
     avatar_url: Optional[str] = None
     website: Optional[str] = None
+    preferred_language: Optional[str] = Field(default="auto", max_length=16)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -44,6 +45,7 @@ class OrganizationRead(SQLModel):
     description: Optional[str]
     avatar_url: Optional[str]
     website: Optional[str]
+    preferred_language: Optional[str]
     is_active: bool
     created_at: datetime
     
@@ -51,5 +53,6 @@ class OrganizationUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
     website: Optional[str] = None
+    preferred_language: Optional[str] = None
     avatar_url: Optional[str] = None
     billing_email: Optional[str] = None
