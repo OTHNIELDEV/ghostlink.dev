@@ -43,7 +43,7 @@ app.add_middleware(
     allowed_hosts=["*"]
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.include_router(pages.router)
 app.include_router(sites.router, prefix="/api")

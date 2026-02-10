@@ -206,6 +206,15 @@ class ProofService:
         }
         current["period_days"] = days
         current["measured_at"] = datetime.utcnow()
+        current["evidence"] = {
+            "proof_score": "measured",
+            "answer_capture_rate_pct": "measured",
+            "citation_rate_pct": "measured",
+            "ai_assist_rate_pct": "measured",
+            "average_quality_score": "measured",
+            "sample_size": "measured",
+            "confidence_level": "measured",
+        }
         return current
 
     async def compute_before_after(

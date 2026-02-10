@@ -38,6 +38,7 @@ async def init_db():
         await conn.run_sync(_ensure_site_columns)
         await conn.run_sync(_ensure_organization_columns)
         await conn.run_sync(_ensure_user_columns)
+        await conn.run_sync(_ensure_analytics_columns)
 
 
 def _ensure_site_columns(sync_conn):
@@ -90,3 +91,21 @@ def _ensure_user_columns(sync_conn):
         if column_name in existing:
             continue
         sync_conn.execute(text(f"ALTER TABLE user ADD COLUMN {column_name} {column_type}"))
+
+
+def _ensure_analytics_columns(sync_conn):
+    inspector = inspect(sync_conn)
+    if "bridgeeventraw" not in inspector.get_table_names():
+        return
+
+    existing = {col["name"] for col in inspector.get_columns("bridgeeventraw")}
+    additions = {
+        "retry_count": "INTEGER DEFAULT 0",
+        "next_retry_at": "DATETIME",
+        "last_error": "VARCHAR",
+    }
+
+    for column_name, column_type in additions.items():
+        if column_name in existing:
+            continue
+        sync_conn.execute(text(f"ALTER TABLE bridgeeventraw ADD COLUMN {column_name} {column_type}"))

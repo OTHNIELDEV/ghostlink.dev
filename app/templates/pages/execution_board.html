@@ -1,0 +1,151 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    {% include 'components/sidebar.html' %}
+
+    <div class="flex-1 overflow-auto p-8 bg-slate-950">
+        <div class="max-w-6xl mx-auto space-y-8">
+            <section
+                class="relative overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-br from-emerald-500/10 via-cyan-500/5 to-indigo-500/5 p-8">
+                <div class="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl pointer-events-none">
+                </div>
+                <div class="relative z-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">실행 보드</p>
+                        <h1 class="mt-2 text-3xl font-bold text-white">고스트링크 정밀 개선 보고서</h1>
+                        <p class="mt-3 max-w-3xl text-sm text-slate-300">
+                            고객 신뢰 개선, 혁신 백로그, 실측/예측 영향 관리를 한 번에 보는 실행 준비 보드입니다.
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                        <span class="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-emerald-200">
+                            온보딩 {{ onboarding.completed_count if onboarding else 0 }}/{{ onboarding.total_steps if onboarding else 0 }}
+                        </span>
+                        <span class="rounded-full border border-cyan-500/40 bg-cyan-500/15 px-3 py-1 text-cyan-200">
+                            증명 신뢰도: {{ proof_overview.confidence_level if proof_overview else 'low' }}
+                        </span>
+                    </div>
+                </div>
+                <div class="relative z-10 mt-5 flex flex-wrap gap-3">
+                    <a href="/manual?org_id={{ org_id }}"
+                        class="rounded-lg border border-slate-600 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 hover:border-cyan-400/50">
+                        매뉴얼로 돌아가기
+                    </a>
+                    <a href="/proof?org_id={{ org_id }}"
+                        class="rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-500/25">
+                        프루프 센터 열기
+                    </a>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {% for stat in measured_stats %}
+                <article class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5">
+                    <p class="text-xs uppercase tracking-wider text-slate-500">{{ stat.label }}</p>
+                    <p class="mt-2 text-2xl font-bold text-white">{{ stat.value }}</p>
+                    <div class="mt-3 flex items-center justify-between gap-2 text-xs">
+                        <span class="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-emerald-200">
+                            {{ stat.evidence|upper }}
+                        </span>
+                        <span class="text-slate-400">{{ stat.note }}</span>
+                    </div>
+                </article>
+                {% endfor %}
+            </section>
+
+            <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <article class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6">
+                    <h2 class="text-lg font-semibold text-white">예측 효용 영향</h2>
+                    <p class="mt-1 text-sm text-slate-400">
+                        아래 범위는 계획 가정치이며, 모두 예측값으로 명시됩니다.
+                    </p>
+                    <div class="mt-4 space-y-3">
+                        {% for row in projected_stats %}
+                        <div class="rounded-xl border border-slate-700/70 bg-slate-950/70 p-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <p class="text-sm font-semibold text-slate-100">{{ row.metric }}</p>
+                                <span class="rounded-full border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-xs text-violet-200">
+                                    {{ row.evidence|upper }}
+                                </span>
+                            </div>
+                            <p class="mt-2 text-xs text-slate-400">현재: {{ row.current }}</p>
+                            <p class="text-xs text-slate-400">목표: {{ row.target }}</p>
+                            <p class="mt-1 text-sm font-semibold text-emerald-300">예상 영향: {{ row.impact }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </article>
+
+                <article class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6">
+                    <h2 class="text-lg font-semibold text-white">개발 준비도</h2>
+                    <p class="mt-1 text-sm text-slate-400">
+                        정밀 개선 매뉴얼을 즉시 실행하기 위한 체크리스트 상태입니다.
+                    </p>
+                    <div class="mt-4 space-y-3">
+                        {% for item in readiness_checklist %}
+                        <div class="flex items-start gap-3 rounded-xl border border-slate-700/70 bg-slate-950/70 p-3">
+                            {% if item.status == 'ready' %}
+                            <span class="mt-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
+                            {% elif item.status == 'partial' %}
+                            <span class="mt-0.5 h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+                            {% else %}
+                            <span class="mt-0.5 h-2.5 w-2.5 rounded-full bg-slate-500"></span>
+                            {% endif %}
+                            <div>
+                                <p class="text-sm text-slate-200">{{ item.item }}</p>
+                                <p class="text-xs uppercase tracking-wider text-slate-500">상태: {{ item.status }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </article>
+            </section>
+
+            <section class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6">
+                <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">실행 백로그</h2>
+                        <p class="text-sm text-slate-400">고객 신뢰 성과에 맞춘 우선순위 실행 항목입니다.</p>
+                    </div>
+                    <a href="/reports/daily?org_id={{ org_id }}"
+                        class="inline-flex rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-2 text-sm font-semibold text-violet-200 hover:bg-violet-500/25">
+                        일일 리포트 열기
+                    </a>
+                </div>
+                <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    {% for task in execution_backlog %}
+                    <article class="rounded-xl border border-slate-700/70 bg-slate-950/70 p-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <span
+                                    class="rounded-full border border-cyan-500/40 bg-cyan-500/15 px-2 py-1 text-xs font-semibold text-cyan-200">
+                                    {{ task.priority }}
+                                </span>
+                                {% if task.status == 'completed' %}
+                                <span class="rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase tracking-wider text-emerald-300">
+                                    완료
+                                </span>
+                                {% elif task.status == 'in_progress' %}
+                                <span class="rounded-full border border-amber-500/35 bg-amber-500/10 px-2 py-1 text-[10px] uppercase tracking-wider text-amber-300">
+                                    진행중
+                                </span>
+                                {% else %}
+                                <span class="rounded-full border border-slate-600 bg-slate-900 px-2 py-1 text-[10px] uppercase tracking-wider text-slate-300">
+                                    대기
+                                </span>
+                                {% endif %}
+                            </div>
+                            <span class="text-xs text-slate-500">{{ task.estimate }}</span>
+                        </div>
+                        <h3 class="mt-2 text-base font-semibold text-slate-100">{{ task.title }}</h3>
+                        <p class="mt-2 text-sm text-slate-300">{{ task.scope }}</p>
+                        <p class="mt-3 text-xs text-slate-500">{{ task.files }}</p>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}

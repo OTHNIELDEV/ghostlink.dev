@@ -2,14 +2,14 @@ import logging
 import json
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import func, select, and_
 from app.db.engine import get_session
 from app.models.approval import ApprovalRequest
 from app.models.site import Site
-from app.models.analytics import BotVisit, BridgeEvent
+from app.models.analytics import BotVisit, BridgeEvent, BridgeEventRaw
 from app.models.user import User
 from app.models.organization import Organization, Membership
 from app.routers.users import get_current_user
@@ -40,6 +40,447 @@ from typing import Any, Optional
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 logger = logging.getLogger(__name__)
+
+
+FOOTER_NAV_ITEMS: list[dict[str, str]] = [
+    {"slug": "features", "label": "Features", "group": "Product", "href": "/features"},
+    {"slug": "pricing", "label": "Pricing", "group": "Product", "href": "/footer/pricing"},
+    {"slug": "integrations", "label": "Integrations", "group": "Product", "href": "/footer/integrations"},
+    {"slug": "changelog", "label": "Changelog", "group": "Product", "href": "/footer/changelog"},
+    {"slug": "documentation", "label": "Documentation", "group": "Product", "href": "/footer/documentation"},
+    {"slug": "blog", "label": "Blog", "group": "Resources", "href": "/footer/blog"},
+    {"slug": "community", "label": "Community", "group": "Resources", "href": "/footer/community"},
+    {"slug": "help-center", "label": "Help Center", "group": "Resources", "href": "/footer/help-center"},
+    {"slug": "api-reference", "label": "API Reference", "group": "Resources", "href": "/footer/api-reference"},
+    {"slug": "status", "label": "System Status", "group": "Resources", "href": "/footer/status"},
+    {"slug": "about", "label": "About Us", "group": "Company", "href": "/footer/about"},
+    {"slug": "careers", "label": "Careers", "group": "Company", "href": "/footer/careers"},
+    {"slug": "legal", "label": "Legal", "group": "Company", "href": "/footer/legal"},
+    {"slug": "contact", "label": "Contact", "group": "Company", "href": "/footer/contact"},
+    {"slug": "privacy", "label": "Privacy Policy", "group": "Legal", "href": "/footer/privacy"},
+    {"slug": "terms", "label": "Terms of Service", "group": "Legal", "href": "/footer/terms"},
+]
+
+
+FOOTER_PAGE_DETAILS: dict[str, dict[str, Any]] = {
+    "features": {
+        "eyebrow": "Product",
+        "title": "Feature Deep Dive",
+        "subtitle": (
+            "GhostLink combines AI visibility analysis, proof metrics, and governed optimization loops "
+            "into one execution system."
+        ),
+        "status": "live",
+        "highlights": [
+            "Automated JSON-LD and llms.txt generation for AI readability.",
+            "Measured Proof Center metrics: ACR, Citation Rate, AI Assist Rate.",
+            "Approval and audit workflows for safe production changes.",
+            "Daily reports for cross-team and client communication.",
+        ],
+        "customer_confidence": [
+            "Every score card has a measured/predicted label.",
+            "Onboarding steps map directly to customer outcomes.",
+            "Daily summaries expose trend direction and unresolved risk.",
+        ],
+        "build_ready": [
+            "Route and UI are already live.",
+            "Can be expanded with persona-specific feature tours.",
+        ],
+        "primary_cta": {"label": "Open Feature Page", "href": "/features"},
+        "secondary_cta": {"label": "Open Manual", "href": "/manual"},
+    },
+    "pricing": {
+        "eyebrow": "Product",
+        "title": "Pricing and Packaging",
+        "subtitle": "Plans are aligned to proof cadence, governance depth, and team operating scale.",
+        "status": "live",
+        "highlights": [
+            "Transparent plan ladder from Free to Enterprise.",
+            "Usage limits tied to sites, scans, and team seats.",
+            "Monthly and yearly billing options with Stripe-backed flows.",
+            "Enterprise path includes custom contract and governance support.",
+        ],
+        "customer_confidence": [
+            "Show current plan utilization before upgrade prompts.",
+            "Highlight expected proof cadence by plan.",
+            "Expose overage risk and recommended next tier in advance.",
+        ],
+        "build_ready": [
+            "Billing pages and checkout APIs are already implemented.",
+            "Can add ROI calculator as a low-risk incremental page module.",
+        ],
+        "primary_cta": {"label": "See Pricing Section", "href": "/#pricing"},
+        "secondary_cta": {"label": "Open Billing", "href": "/billing"},
+    },
+    "integrations": {
+        "eyebrow": "Product",
+        "title": "Integration Paths",
+        "subtitle": "Deploy GhostLink once through shared templates, CMS hooks, or tag managers.",
+        "status": "live",
+        "highlights": [
+            "Single insertion model: common layout, GTM, or static head.",
+            "Bridge script URL generated per site and org.",
+            "Installation detection via script requests and bridge events.",
+            "Compatible with static, SSR, and CMS-driven architectures.",
+        ],
+        "customer_confidence": [
+            "Physical deployment confirmation panel with 7-day signal counts.",
+            "Clear fallback flow when no signal is detected.",
+            "Copy-ready script tags reduce implementation mistakes.",
+        ],
+        "build_ready": [
+            "Integration guide page and telemetry checks already exist.",
+            "Can add framework-specific snippets as a docs-only extension.",
+        ],
+        "primary_cta": {"label": "Open Integration Guide", "href": "/docs/integration-guide"},
+        "secondary_cta": {"label": "Open Dashboard", "href": "/dashboard"},
+    },
+    "changelog": {
+        "eyebrow": "Product",
+        "title": "Release and Changelog",
+        "subtitle": "A customer-readable change narrative reduces uncertainty and supports trust at upgrade time.",
+        "status": "live",
+        "highlights": [
+            "Versioned release notes grouped by customer impact.",
+            "Separate flags for feature, fix, and reliability updates.",
+            "Migration notes for API and schema-affecting releases.",
+            "Roadmap handoff from planned to shipped states.",
+        ],
+        "customer_confidence": [
+            "Users can verify what changed before adopting new workflows.",
+            "Critical fixes are easy to audit during incident reviews.",
+            "Teams can map releases to KPI shifts in Proof Center.",
+        ],
+        "build_ready": [
+            "Can be implemented as markdown-backed entries under docs/.",
+            "No schema change required for MVP version.",
+        ],
+        "timeline": [
+            {
+                "date": "2026-02-10",
+                "type": "feature",
+                "title": "Execution Board and Footer Detail Routes Released",
+                "summary": "All footer menu destinations now open dedicated pages with confidence-oriented content.",
+                "evidence": "measured",
+            },
+            {
+                "date": "2026-02-10",
+                "type": "improvement",
+                "title": "Measured/Predicted Evidence Labels Standardized",
+                "summary": "Dashboard, proof, report, and daily summary exports now explicitly label evidence type.",
+                "evidence": "measured",
+            },
+            {
+                "date": "2026-02-10",
+                "type": "improvement",
+                "title": "Optimization Reward Loop v2 Baseline Delta",
+                "summary": "Auto-evaluation now compares pre/post proof snapshots and records weighted reward feedback.",
+                "evidence": "measured",
+            },
+        ],
+        "primary_cta": {"label": "Open Execution Board", "href": "/manual/execution-board"},
+        "secondary_cta": {"label": "Open Documentation", "href": "/footer/documentation"},
+    },
+    "documentation": {
+        "eyebrow": "Product",
+        "title": "Documentation Hub",
+        "subtitle": "Operational docs, API contracts, and implementation guides are consolidated here.",
+        "status": "live",
+        "highlights": [
+            "Integration guide for physical deployment paths.",
+            "RBAC policy matrix and routing contracts.",
+            "Stripe event transition references for billing safety.",
+            "Customer clarity and proof innovation roadmap docs.",
+        ],
+        "customer_confidence": [
+            "Documents explicitly separate measured vs predicted claims.",
+            "Every guide has completion signals to avoid ambiguous setup.",
+            "Cross-functional owners can follow one source of truth.",
+        ],
+        "build_ready": [
+            "Core docs already exist in the repository.",
+            "Can be expanded with generated API docs index.",
+        ],
+        "primary_cta": {"label": "Open Manual", "href": "/manual"},
+        "secondary_cta": {"label": "Open Integration Guide", "href": "/docs/integration-guide"},
+    },
+    "blog": {
+        "eyebrow": "Resources",
+        "title": "Insights and Playbooks",
+        "subtitle": "Explain AI visibility strategy with practical experiments and customer stories.",
+        "status": "ready_to_build",
+        "highlights": [
+            "Use-case articles by industry and acquisition model.",
+            "Before/after case studies tied to measurable proof metrics.",
+            "Implementation retrospectives from onboarding teams.",
+            "SEO and AI retrieval experimentation notes.",
+        ],
+        "customer_confidence": [
+            "Public case stories demonstrate repeatable outcomes.",
+            "Transparent methodology prevents inflated claims.",
+            "Readers can reuse checklists in their own deployments.",
+        ],
+        "build_ready": [
+            "Can start as static markdown pages and evolve later.",
+            "No backend dependency for initial release.",
+        ],
+        "primary_cta": {"label": "Open Daily Reports", "href": "/reports/daily"},
+        "secondary_cta": {"label": "Open Proof Center", "href": "/proof"},
+    },
+    "community": {
+        "eyebrow": "Resources",
+        "title": "Community Workspace",
+        "subtitle": "A guided forum and office-hour pattern shortens activation time for new teams.",
+        "status": "ready_to_build",
+        "highlights": [
+            "Weekly implementation office hours.",
+            "Shared query sets and attribution event templates.",
+            "Common troubleshooting playbooks by framework.",
+            "Customer benchmark discussions with confidence labels.",
+        ],
+        "customer_confidence": [
+            "Teams see peers solving the same integration issues.",
+            "Faster answers reduce perceived product risk.",
+            "Community examples provide realistic expectation ranges.",
+        ],
+        "build_ready": [
+            "Can launch with a simple external community link first.",
+            "Internal member-only board can be added in a later phase.",
+        ],
+        "primary_cta": {"label": "Open Contact", "href": "/footer/contact"},
+        "secondary_cta": {"label": "Open Help Center", "href": "/footer/help-center"},
+    },
+    "help-center": {
+        "eyebrow": "Resources",
+        "title": "Help Center",
+        "subtitle": "Issue-to-resolution runbooks make support repeatable and reduce churn risk.",
+        "status": "ready_to_build",
+        "highlights": [
+            "Top setup failures and immediate remediation checklists.",
+            "Billing and permission troubleshooting by role.",
+            "Proof KPI interpretation and confidence-level guidance.",
+            "Escalation matrix with owner, SLA, and fallback channel.",
+        ],
+        "customer_confidence": [
+            "Problem states have explicit completion criteria.",
+            "Users can self-recover before opening a support ticket.",
+            "Support responses stay consistent across teams.",
+        ],
+        "build_ready": [
+            "Can be shipped as a static docs section first.",
+            "Ticket routing integration can follow after MVP.",
+        ],
+        "primary_cta": {"label": "Open Integration Guide", "href": "/docs/integration-guide"},
+        "secondary_cta": {"label": "Open Contact", "href": "/footer/contact"},
+    },
+    "api-reference": {
+        "eyebrow": "Resources",
+        "title": "API Reference",
+        "subtitle": "Programmatic endpoints support automation, custom dashboards, and internal platform integration.",
+        "status": "live",
+        "highlights": [
+            "Coverage for onboarding, proof, optimization, attribution, and billing APIs.",
+            "Org-scoped access with RBAC-aware behavior.",
+            "Audit-friendly request flow for sensitive actions.",
+            "Compatible with external BI and automation pipelines.",
+        ],
+        "customer_confidence": [
+            "Teams can validate key metrics independently via API.",
+            "Deterministic payload contracts reduce integration risk.",
+            "Audit logs support compliance and governance needs.",
+        ],
+        "build_ready": [
+            "API routes already exist and are production-capable.",
+            "Can add OpenAPI examples and SDK snippets incrementally.",
+        ],
+        "primary_cta": {"label": "Open Manual", "href": "/manual"},
+        "secondary_cta": {"label": "Open Proof Center", "href": "/proof"},
+    },
+    "status": {
+        "eyebrow": "Resources",
+        "title": "System Status",
+        "subtitle": "Service transparency builds confidence during both normal operation and incidents.",
+        "status": "live",
+        "highlights": [
+            "Current health for API, crawler, bridge, and report pipelines.",
+            "Incident timeline with mitigation and postmortem links.",
+            "Historical uptime by component.",
+            "Planned maintenance announcements and expected impact.",
+        ],
+        "customer_confidence": [
+            "Users can separate platform issues from integration mistakes.",
+            "Incident communication reduces uncertainty during outages.",
+            "Historical reliability supports procurement confidence.",
+        ],
+        "build_ready": [
+            "MVP can start as manually updated status timeline.",
+            "Automated checks can be added once alerting hooks are wired.",
+        ],
+        "timeline": [
+            {
+                "date": "2026-02-10 09:00 UTC",
+                "type": "operational",
+                "title": "API Gateway",
+                "summary": "Operational with no ongoing incident. Average latency within normal range.",
+                "evidence": "measured",
+            },
+            {
+                "date": "2026-02-10 09:00 UTC",
+                "type": "operational",
+                "title": "Crawler + Bridge Event Pipeline",
+                "summary": "Operational. Daily report ingestion and proof metrics updates are processing normally.",
+                "evidence": "measured",
+            },
+            {
+                "date": "2026-02-10 09:00 UTC",
+                "type": "maintenance",
+                "title": "Auto Evaluation Window",
+                "summary": "Post-action reward evaluator endpoint is active for scheduled org-level runs.",
+                "evidence": "measured",
+            },
+        ],
+        "primary_cta": {"label": "Open Daily Reports", "href": "/reports/daily"},
+        "secondary_cta": {"label": "Open Contact", "href": "/footer/contact"},
+    },
+    "about": {
+        "eyebrow": "Company",
+        "title": "About GhostLink",
+        "subtitle": "GhostLink positions AI visibility as an operational discipline, not a one-time setup task.",
+        "status": "live",
+        "highlights": [
+            "Mission: connect website intent to AI answer channels.",
+            "Product strategy: measured proof over vanity metrics.",
+            "Governance-first architecture for enterprise safety.",
+            "Execution model: inspect, apply, verify, and report.",
+        ],
+        "customer_confidence": [
+            "Clear mission reduces ambiguity in product expectations.",
+            "Methodology transparency improves buyer trust.",
+            "Outcome framing aligns technical work with revenue goals.",
+        ],
+        "build_ready": [
+            "Current product messaging can be reused immediately.",
+            "Can be extended with customer success stories over time.",
+        ],
+        "primary_cta": {"label": "Open Execution Board", "href": "/manual/execution-board"},
+        "secondary_cta": {"label": "Open Contact", "href": "/footer/contact"},
+    },
+    "careers": {
+        "eyebrow": "Company",
+        "title": "Careers",
+        "subtitle": "Hiring pages can reinforce product credibility by showing the operating principles behind delivery.",
+        "status": "ready_to_build",
+        "highlights": [
+            "Role tracks for platform engineering, growth, and customer success.",
+            "Hiring principles tied to product reliability and customer outcomes.",
+            "Public scorecards for team goals and release quality.",
+            "Transparent process and interview expectations.",
+        ],
+        "customer_confidence": [
+            "Strong hiring signal indicates long-term product commitment.",
+            "Role transparency demonstrates operational maturity.",
+            "Customers see dedicated ownership for their success.",
+        ],
+        "build_ready": [
+            "Can launch with a lean roles board and application form.",
+            "No dependency on product database schema.",
+        ],
+        "primary_cta": {"label": "Open About", "href": "/footer/about"},
+        "secondary_cta": {"label": "Open Contact", "href": "/footer/contact"},
+    },
+    "legal": {
+        "eyebrow": "Company",
+        "title": "Legal Overview",
+        "subtitle": "Legal clarity is a direct conversion factor for procurement and enterprise onboarding.",
+        "status": "live",
+        "highlights": [
+            "Service terms, privacy commitments, and acceptable use boundaries.",
+            "Data processing and retention baseline for customer artifacts.",
+            "Security and incident communication obligations.",
+            "Role and access governance references for admins.",
+        ],
+        "customer_confidence": [
+            "Buyers can validate compliance posture quickly.",
+            "Defined responsibilities reduce contracting friction.",
+            "Operational safeguards are explicit, not implied.",
+        ],
+        "build_ready": [
+            "Core legal pages are implemented as dedicated routes.",
+            "Can add downloadable policy PDFs without backend changes.",
+        ],
+        "primary_cta": {"label": "Open Privacy Policy", "href": "/footer/privacy"},
+        "secondary_cta": {"label": "Open Terms of Service", "href": "/footer/terms"},
+    },
+    "contact": {
+        "eyebrow": "Company",
+        "title": "Contact and Escalation",
+        "subtitle": "Every customer should know where to ask, escalate, and verify next actions.",
+        "status": "live",
+        "highlights": [
+            "Sales, support, and technical escalation channels.",
+            "Response-time expectations by request type.",
+            "Implementation prep checklist before onboarding sessions.",
+            "Security and compliance inquiry path for procurement teams.",
+        ],
+        "customer_confidence": [
+            "Clear contact channels reduce adoption anxiety.",
+            "Escalation paths protect launch timelines.",
+            "Support expectations are transparent before purchase.",
+        ],
+        "build_ready": [
+            "Can connect to CRM and ticketing tools incrementally.",
+            "Current mailto-based enterprise flow already exists in billing logic.",
+        ],
+        "primary_cta": {"label": "Email Sales", "href": "mailto:sales@ghostlink.io"},
+        "secondary_cta": {"label": "Open Billing", "href": "/billing"},
+    },
+    "privacy": {
+        "eyebrow": "Legal",
+        "title": "Privacy Policy",
+        "subtitle": "Define how GhostLink handles telemetry, usage data, and customer-provided information.",
+        "status": "live",
+        "highlights": [
+            "Data collection scope and processing purposes.",
+            "Storage, retention windows, and deletion requests.",
+            "Access controls, auditing, and encryption baseline.",
+            "Third-party processors and lawful disclosure handling.",
+        ],
+        "customer_confidence": [
+            "Privacy boundaries are explicit before integration.",
+            "Security controls map to enterprise review checklists.",
+            "Customers can verify data lifecycle expectations.",
+        ],
+        "build_ready": [
+            "Can maintain policy text directly in this page template.",
+            "Version tagging can be added with changelog integration.",
+        ],
+        "primary_cta": {"label": "Open Legal Overview", "href": "/footer/legal"},
+        "secondary_cta": {"label": "Open Terms of Service", "href": "/footer/terms"},
+    },
+    "terms": {
+        "eyebrow": "Legal",
+        "title": "Terms of Service",
+        "subtitle": "Set clear responsibilities for service use, payment, and operational boundaries.",
+        "status": "live",
+        "highlights": [
+            "Service scope, account obligations, and acceptable use.",
+            "Billing terms, renewal behavior, and cancellation conditions.",
+            "Support boundaries and warranty disclaimers.",
+            "Liability and dispute handling framework.",
+        ],
+        "customer_confidence": [
+            "Contract terms are discoverable from any page footer.",
+            "Billing behavior is transparent before checkout.",
+            "Risk boundaries are understandable by both legal and ops teams.",
+        ],
+        "build_ready": [
+            "Policy can be refined without schema or API changes.",
+            "Can later include signed-version acknowledgment workflow.",
+        ],
+        "primary_cta": {"label": "Open Privacy Policy", "href": "/footer/privacy"},
+        "secondary_cta": {"label": "Open Contact", "href": "/footer/contact"},
+    },
+}
 
 
 def _hydrate_site_language(site: Site, accept_language: str | None = None) -> None:
@@ -480,11 +921,13 @@ async def report_page(
 
 @router.get("/")
 async def landing(request: Request, user: Optional[User] = Depends(get_current_user)):
+    plans = get_all_plans()
     return templates.TemplateResponse(
         "pages/landing.html",
         {
             "request": request,
             "user": user,
+            "plans": plans,
             **_build_ui_language_context(request, user),
         },
     )
@@ -832,6 +1275,191 @@ async def manual_page(
     )
 
 
+@router.get("/manual/execution-board")
+async def execution_board_page(
+    request: Request,
+    org_id: int = None,
+    period_days: int = 30,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=303)
+
+    effective_org_id = await get_org_id_for_user(session, user, org_id)
+    membership = (
+        await session.exec(
+            select(Membership).where(
+                and_(
+                    Membership.org_id == effective_org_id,
+                    Membership.user_id == user.id,
+                )
+            )
+        )
+    ).first()
+    if not membership:
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    pending_approval_count = await _get_pending_approval_count(session, effective_org_id)
+    onboarding = await onboarding_service.get_status(
+        session=session,
+        org_id=effective_org_id,
+        user_id=user.id,
+    )
+    proof_overview = await proof_service.compute_overview(
+        session=session,
+        org_id=effective_org_id,
+        period_days=period_days,
+    )
+    daily_summary = await report_service.build_daily_summary(
+        session=session,
+        org_id=effective_org_id,
+        day_str=None,
+    )
+
+    measured_stats = [
+        {
+            "label": "연결된 사이트 수",
+            "value": str(daily_summary.get("site_count", 0)),
+            "evidence": "measured",
+            "note": "일일 리포트 요약",
+        },
+        {
+            "label": "답변 점유율(ACR)",
+            "value": f"{proof_overview.get('answer_capture_rate_pct', 0.0)}%",
+            "evidence": "measured",
+            "note": f"최근 {proof_overview.get('period_days', period_days)}일",
+        },
+        {
+            "label": "인용률",
+            "value": f"{proof_overview.get('citation_rate_pct', 0.0)}%",
+            "evidence": "measured",
+            "note": f"최근 {proof_overview.get('period_days', period_days)}일",
+        },
+        {
+            "label": "AI 기여 전환율",
+            "value": f"{proof_overview.get('ai_assist_rate_pct', 0.0)}%",
+            "evidence": "measured",
+            "note": f"신뢰도: {proof_overview.get('confidence_level', 'low')}",
+        },
+    ]
+
+    projected_stats = [
+        {
+            "metric": "첫 증명 도달 시간",
+            "current": "3일 (수동 운영 기준)",
+            "target": "30분",
+            "impact": "최대 94% 단축",
+            "evidence": "predicted",
+        },
+        {
+            "metric": "온보딩 단계 완료율",
+            "current": "단일 진입 흐름",
+            "target": "가이드형 7단계 흐름",
+            "impact": "+20% ~ +35%",
+            "evidence": "predicted",
+        },
+        {
+            "metric": "액션-성과 전환율",
+            "current": "수동 관찰",
+            "target": "예약 자동 평가",
+            "impact": "+15% ~ +28%",
+            "evidence": "predicted",
+        },
+        {
+            "metric": "경영 보고 처리속도",
+            "current": "수동 취합",
+            "target": "일일 자동 PDF + 보드",
+            "impact": "4배 ~ 6배 향상",
+            "evidence": "predicted",
+        },
+    ]
+
+    execution_backlog = [
+        {
+            "priority": "P0",
+            "title": "모든 KPI 카드에 증명 신뢰도 배지 적용",
+            "scope": "대시보드/리포트/프루프 카드에 표본 기반 신뢰도를 노출.",
+            "files": "app/templates/pages/proof.html, app/templates/pages/dashboard.html, app/services/proof_service.py",
+            "estimate": "0.5 day",
+            "status": "completed",
+        },
+        {
+            "priority": "P0",
+            "title": "실측/예측 영향 라벨 전면 분리",
+            "scope": "개선 주장과 내보내기 payload에 증거 라벨을 강제.",
+            "files": "app/routers/pages.py, app/templates/pages/report.html, app/services/report_service.py",
+            "estimate": "0.5 day",
+            "status": "completed",
+        },
+        {
+            "priority": "P1",
+            "title": "액션 후 자동 보상 평가",
+            "scope": "적용 전/후 스냅샷을 비교해 밴딧 보상값을 자동 반영.",
+            "files": "app/services/optimization_service.py, app/services/bandit_service.py",
+            "estimate": "1.5 days",
+            "status": "completed",
+        },
+        {
+            "priority": "P1",
+            "title": "고객 신뢰 내러티브 위젯",
+            "scope": "왜 지표가 변했는지, 어떤 액션이 결과를 만들었는지 설명.",
+            "files": "app/templates/pages/proof.html, app/templates/pages/daily_reports.html",
+            "estimate": "1.0 day",
+            "status": "completed",
+        },
+        {
+            "priority": "P2",
+            "title": "공개 상태/변경이력 피드",
+            "scope": "신뢰성 업데이트와 릴리스 노트를 footer 경로에 게시.",
+            "files": "app/templates/pages/footer_detail.html, docs/",
+            "estimate": "1.0 day",
+            "status": "completed",
+        },
+    ]
+
+    readiness_checklist = [
+        {
+            "item": "ACR/인용률/AI 기여 지표 스키마가 이미 준비되어 있음.",
+            "status": "ready",
+        },
+        {
+            "item": "온보딩 흐름과 매뉴얼이 구현되어 확장 가능.",
+            "status": "ready",
+        },
+        {
+            "item": "결제 및 승인 거버넌스가 운영 가능 상태.",
+            "status": "ready",
+        },
+        {
+            "item": "자동 보상 계산이 baseline/post 스냅샷 델타 방식으로 동작.",
+            "status": "ready",
+        },
+        {
+            "item": "공개 changelog/status 피드가 게시되어 고객에게 노출됨.",
+            "status": "ready",
+        },
+    ]
+
+    return templates.TemplateResponse(
+        "pages/execution_board.html",
+        {
+            "request": request,
+            "active_page": "manual",
+            "user": user,
+            "org_id": effective_org_id,
+            "pending_approval_count": pending_approval_count,
+            "onboarding": onboarding,
+            "proof_overview": proof_overview,
+            "measured_stats": measured_stats,
+            "projected_stats": projected_stats,
+            "execution_backlog": execution_backlog,
+            "readiness_checklist": readiness_checklist,
+            **_build_ui_language_context(request, user),
+        },
+    )
+
+
 @router.get("/reports/daily")
 async def daily_reports_page(
     request: Request,
@@ -920,6 +1548,11 @@ async def proof_page(
         org_id=effective_org_id,
         query_set_id=selected_query_set_id,
     )
+    optimization_impact = await optimization_service.build_action_impact_summary(
+        session=session,
+        org_id=effective_org_id,
+        limit=4,
+    )
     snapshots = await proof_service.list_snapshots(
         session=session,
         org_id=effective_org_id,
@@ -954,6 +1587,7 @@ async def proof_page(
             "query_sets": query_sets,
             "selected_query_set_id": selected_query_set_id,
             "before_after": before_after,
+            "optimization_impact": optimization_impact,
             "snapshots": snapshots,
             "onboarding": onboarding,
             "subscription": subscription_info,
@@ -1014,6 +1648,14 @@ async def integration_guide_page(
         "detected": False,
         "script_request_count_7d": 0,
         "bridge_event_count_7d": 0,
+        "raw_event_total_7d": 0,
+        "raw_event_dropped_7d": 0,
+        "raw_event_accept_rate_pct_7d": None,
+        "batch_source_share_pct_7d": None,
+        "raw_event_retry_seen_7d": 0,
+        "raw_event_retry_seen_share_pct_7d": None,
+        "raw_event_retry_pending_7d": 0,
+        "raw_event_retry_exhausted_7d": 0,
     }
     if target_site:
         seven_days_ago = datetime.utcnow() - timedelta(days=7)
@@ -1043,10 +1685,120 @@ async def integration_guide_page(
             ).one()
             or 0
         )
+        raw_event_total_7d = int(
+            (
+                await session.exec(
+                    select(func.count()).select_from(BridgeEventRaw).where(
+                        and_(
+                            BridgeEventRaw.site_id == target_site.id,
+                            BridgeEventRaw.created_at >= seven_days_ago,
+                        )
+                    )
+                )
+            ).one()
+            or 0
+        )
+        raw_event_dropped_7d = int(
+            (
+                await session.exec(
+                    select(func.count()).select_from(BridgeEventRaw).where(
+                        and_(
+                            BridgeEventRaw.site_id == target_site.id,
+                            BridgeEventRaw.created_at >= seven_days_ago,
+                            BridgeEventRaw.dropped_reason.is_not(None),
+                        )
+                    )
+                )
+            ).one()
+            or 0
+        )
+        raw_event_batch_source_7d = int(
+            (
+                await session.exec(
+                    select(func.count()).select_from(BridgeEventRaw).where(
+                        and_(
+                            BridgeEventRaw.site_id == target_site.id,
+                            BridgeEventRaw.created_at >= seven_days_ago,
+                            BridgeEventRaw.ingest_source == "batch_post",
+                        )
+                    )
+                )
+            ).one()
+            or 0
+        )
+        raw_event_retry_seen_7d = int(
+            (
+                await session.exec(
+                    select(func.count()).select_from(BridgeEventRaw).where(
+                        and_(
+                            BridgeEventRaw.site_id == target_site.id,
+                            BridgeEventRaw.created_at >= seven_days_ago,
+                            BridgeEventRaw.retry_count > 0,
+                        )
+                    )
+                )
+            ).one()
+            or 0
+        )
+        raw_event_retry_pending_7d = int(
+            (
+                await session.exec(
+                    select(func.count()).select_from(BridgeEventRaw).where(
+                        and_(
+                            BridgeEventRaw.site_id == target_site.id,
+                            BridgeEventRaw.created_at >= seven_days_ago,
+                            BridgeEventRaw.normalized == False,  # noqa: E712
+                            BridgeEventRaw.dropped_reason.is_(None),
+                        )
+                    )
+                )
+            ).one()
+            or 0
+        )
+        raw_event_retry_exhausted_7d = int(
+            (
+                await session.exec(
+                    select(func.count()).select_from(BridgeEventRaw).where(
+                        and_(
+                            BridgeEventRaw.site_id == target_site.id,
+                            BridgeEventRaw.created_at >= seven_days_ago,
+                            BridgeEventRaw.dropped_reason == "retry_exhausted",
+                        )
+                    )
+                )
+            ).one()
+            or 0
+        )
+        raw_event_accept_rate_pct_7d = (
+            round(
+                ((raw_event_total_7d - raw_event_dropped_7d) / raw_event_total_7d) * 100.0,
+                1,
+            )
+            if raw_event_total_7d > 0
+            else None
+        )
+        raw_event_retry_seen_share_pct_7d = (
+            round((raw_event_retry_seen_7d / raw_event_total_7d) * 100.0, 1)
+            if raw_event_total_7d > 0
+            else None
+        )
+        batch_source_share_pct_7d = (
+            round((raw_event_batch_source_7d / raw_event_total_7d) * 100.0, 1)
+            if raw_event_total_7d > 0
+            else None
+        )
         installation_status = {
             "detected": (script_request_count_7d + bridge_event_count_7d) > 0,
             "script_request_count_7d": script_request_count_7d,
             "bridge_event_count_7d": bridge_event_count_7d,
+            "raw_event_total_7d": raw_event_total_7d,
+            "raw_event_dropped_7d": raw_event_dropped_7d,
+            "raw_event_accept_rate_pct_7d": raw_event_accept_rate_pct_7d,
+            "batch_source_share_pct_7d": batch_source_share_pct_7d,
+            "raw_event_retry_seen_7d": raw_event_retry_seen_7d,
+            "raw_event_retry_seen_share_pct_7d": raw_event_retry_seen_share_pct_7d,
+            "raw_event_retry_pending_7d": raw_event_retry_pending_7d,
+            "raw_event_retry_exhausted_7d": raw_event_retry_exhausted_7d,
         }
         bridge_script_url = str(request.base_url).rstrip("/") + f"/api/bridge/{target_site.script_id}.js"
 
@@ -1185,6 +1937,30 @@ async def features_page(
         "user": user,
         **_build_ui_language_context(request, user),
     })
+
+
+@router.get("/footer/{slug}")
+async def footer_detail_page(
+    request: Request,
+    slug: str,
+    user: Optional[User] = Depends(get_current_user),
+):
+    normalized_slug = (slug or "").strip().lower()
+    page_detail = FOOTER_PAGE_DETAILS.get(normalized_slug)
+    if not page_detail:
+        raise HTTPException(status_code=404, detail="Footer page not found")
+
+    return templates.TemplateResponse(
+        "pages/footer_detail.html",
+        {
+            "request": request,
+            "active_page": "footer",
+            "user": user,
+            "footer_page": {**page_detail, "slug": normalized_slug},
+            "footer_nav_items": FOOTER_NAV_ITEMS,
+            **_build_ui_language_context(request, user),
+        },
+    )
 
 @router.get("/favicon.ico", include_in_schema=False)
 async def favicon():

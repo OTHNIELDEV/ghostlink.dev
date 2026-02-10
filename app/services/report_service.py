@@ -13,9 +13,17 @@ from app.models.innovation import AnswerCaptureResult, AnswerCaptureRun, Attribu
 from app.models.organization import Organization
 from app.models.site import Site
 from app.services.innovation_service import innovation_service
+from app.services.optimization_service import optimization_service
 
 
 class ReportService:
+    def _confidence_level(self, sample_size: int) -> str:
+        if sample_size >= 50:
+            return "high"
+        if sample_size >= 15:
+            return "medium"
+        return "low"
+
     def _day_window(self, day_str: str | None) -> tuple[datetime, datetime]:
         if day_str:
             try:
@@ -143,6 +151,9 @@ class ReportService:
         ai_assist_rate = (
             round((ai_assisted_total / conversions_total) * 100.0, 1) if conversions_total > 0 else 0.0
         )
+        proof_sample_size = total_queries_scored if total_queries_scored > 0 else conversions_total
+        proof_confidence_level = self._confidence_level(proof_sample_size)
+        attribution_confidence_level = self._confidence_level(conversions_total)
 
         pending_approvals = int(
             (
@@ -158,6 +169,11 @@ class ReportService:
                 )
             ).one()
             or 0
+        )
+        optimization_impact = await optimization_service.build_action_impact_summary(
+            session=session,
+            org_id=org_id,
+            limit=5,
         )
 
         return {
@@ -179,14 +195,45 @@ class ReportService:
                 "answer_capture_rate_pct": acr,
                 "citation_rate_pct": citation_rate,
                 "average_quality_score": avg_quality,
+                "sample_size": proof_sample_size,
+                "confidence_level": proof_confidence_level,
             },
             "attribution": {
                 "total_events": len(attribution_rows),
                 "conversions_total": conversions_total,
                 "ai_assisted_conversions": ai_assisted_total,
                 "ai_assist_rate_pct": ai_assist_rate,
+                "confidence_level": attribution_confidence_level,
+            },
+            "evidence": {
+                "site_count": "measured",
+                "avg_visibility_score": "predicted",
+                "ai_crawler_visits": "measured",
+                "human_visits": "measured",
+                "bridge_event_count": "measured",
+                "pending_approvals": "measured",
+                "proof": {
+                    "run_count": "measured",
+                    "total_queries_scored": "measured",
+                    "answer_capture_rate_pct": "measured",
+                    "citation_rate_pct": "measured",
+                    "average_quality_score": "measured",
+                },
+                "attribution": {
+                    "total_events": "measured",
+                    "conversions_total": "measured",
+                    "ai_assisted_conversions": "measured",
+                    "ai_assist_rate_pct": "measured",
+                },
+                "optimization_impact": {
+                    "measured_count": "measured",
+                    "pending_count": "measured",
+                    "positive_count": "measured",
+                    "items": "mixed",
+                },
             },
             "pending_approvals": pending_approvals,
+            "optimization_impact": optimization_impact,
             "sites": [
                 {
                     "id": row.id,

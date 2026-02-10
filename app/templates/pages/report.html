@@ -79,6 +79,19 @@
                 <div class="text-xs text-slate-500">
                     Effective: {{ site.effective_language_label if site.effective_language_label is defined else 'English' }}
                 </div>
+                <div class="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wider">
+                    <span class="px-2 py-0.5 rounded-full border border-amber-500/35 bg-amber-500/10 text-amber-300">
+                        Score predicted
+                    </span>
+                    {% if proof_overview_30d and proof_overview_30d.total_queries_scored > 0 %}
+                    <span class="px-2 py-0.5 rounded-full border border-cyan-500/35 bg-cyan-500/10 text-cyan-300">
+                        Proof measured
+                    </span>
+                    <span class="px-2 py-0.5 rounded-full border border-slate-600 bg-slate-900 text-slate-300">
+                        Confidence {{ proof_overview_30d.confidence_level }}
+                    </span>
+                    {% endif %}
+                </div>
                 <div class="flex items-center gap-4">
                     <div class="text-right">
                         <p class="text-slate-400 text-sm mb-1 uppercase tracking-wider font-semibold">Total Score</p>

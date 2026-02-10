@@ -19,6 +19,11 @@ GhostLink is a production-ready SaaS platform that helps websites optimize for A
 - **Usage Tracking**: Monitor quotas and limits per organization
 - **Webhook Support**: Real-time event notifications
 
+### Operational Manuals
+- **Precision Execution Manual**: `docs/GHOSTLINK_PRECISION_EXECUTION_MANUAL_2026-02-10.md`
+- **Backend Script Hardening Manual (KR)**: `docs/BACKEND_SCRIPT_HARDENING_MANUAL_2026-02-10.md`
+- **Index.html Bridge Script Advanced Manual (KR)**: `docs/INDEX_HTML_BRIDGE_SCRIPT_ADVANCED_MANUAL_2026-02-10.md`
+
 ## Tech Stack
 
 - **Backend**: FastAPI, SQLModel, Async SQLAlchemy
@@ -93,7 +98,12 @@ The app will be available at `http://localhost:8000`
 python3 scripts/smoke_billing_security.py
 ```
 
-5. Run automated core flow tests (phase 1 + approvals + audit logs + auto-optimize + innovation):
+5. Evaluate applied optimization rewards (baseline/post snapshot delta):
+```bash
+python3 scripts/evaluate_applied_optimizations.py
+```
+
+6. Run automated core flow tests (phase 1 + approvals + audit logs + auto-optimize + innovation):
 ```bash
 python3 -m pytest -q tests/test_phase1_core_flows.py tests/test_auto_optimize_loop.py tests/test_role_policy_approvals.py tests/test_approval_inbox_and_audit_logs.py tests/test_innovation_phase3.py tests/test_remaining_innovations.py tests/test_core_engine.py
 ```
@@ -215,6 +225,7 @@ Authorization: Bearer gl_your_api_key
 - `POST /api/v1/optimizations/sites/{site_id}/actions/decide-v2` - Select next action with bandit strategy (`thompson`/`ucb`)
 - `GET /api/v1/optimizations/sites/{site_id}/bandit/arms` - List bandit arm stats
 - `POST /api/v1/optimizations/actions/{action_id}/feedback` - Record reward feedback (0.0-1.0)
+- `POST /api/v1/optimizations/actions/evaluate-applied` - Auto-evaluate applied actions via baseline/post proof snapshots
 
 #### Approval Flow (v1)
 - `GET /api/v1/approvals` - List approval requests by org (`org_id` required)

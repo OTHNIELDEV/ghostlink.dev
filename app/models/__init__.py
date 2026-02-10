@@ -1,6 +1,6 @@
 from app.models.user import User, UserCreate, UserRead, UserUpdate, UserLogin, UserWithOrgs
 from app.models.site import Site, SiteCreate, SiteRead, SiteUpdate
-from app.models.analytics import BotVisit, BridgeEvent
+from app.models.analytics import BotVisit, BridgeEvent, BridgeEventRaw
 from app.models.organization import (
     Organization, Membership, OrganizationCreate, 
     OrganizationRead, OrganizationUpdate
@@ -41,7 +41,7 @@ from app.models.innovation_plus import (
 __all__ = [
     "User", "UserCreate", "UserRead", "UserUpdate", "UserLogin", "UserWithOrgs",
     "Site", "SiteCreate", "SiteRead", "SiteUpdate",
-    "BotVisit", "BridgeEvent",
+    "BotVisit", "BridgeEvent", "BridgeEventRaw",
     "Organization", "Membership", "OrganizationCreate", "OrganizationRead", "OrganizationUpdate",
     "Subscription", "SubscriptionStatus", "SubscriptionRead",
     "PaymentMethod", "Invoice", "UsageRecord", "Plan", "PlanFeature",

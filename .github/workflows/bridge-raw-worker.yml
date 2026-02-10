@@ -1,0 +1,186 @@
+name: Bridge Raw Worker
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      site_id:
+        description: "Optional site id (empty = all pending sites)"
+        required: false
+        type: string
+      limit:
+        description: "Rows per site per round"
+        required: false
+        default: "250"
+        type: string
+      rounds:
+        description: "Worker rounds"
+        required: false
+        default: "1"
+        type: string
+      max_dropped_total:
+        description: "Fail when dropped_total is above this value"
+        required: false
+        default: "50"
+        type: string
+      max_retry_ratio_pct:
+        description: "Fail when retried_total/processed_total ratio(%) is above this value"
+        required: false
+        default: "20"
+        type: string
+
+concurrency:
+  group: bridge-raw-worker-production
+  cancel-in-progress: false
+
+jobs:
+  process-bridge-raw:
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.GHOSTLINK_DATABASE_URL }}
+      SECRET_KEY: ${{ secrets.GHOSTLINK_SECRET_KEY }}
+      ENVIRONMENT: production
+      DEFAULT_LIMIT: ${{ vars.BRIDGE_WORKER_DEFAULT_LIMIT }}
+      DEFAULT_ROUNDS: ${{ vars.BRIDGE_WORKER_DEFAULT_ROUNDS }}
+      DEFAULT_MAX_DROPPED_TOTAL: ${{ vars.BRIDGE_WORKER_MAX_DROPPED_TOTAL }}
+      DEFAULT_MAX_RETRY_RATIO_PCT: ${{ vars.BRIDGE_WORKER_MAX_RETRY_RATIO_PCT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate Required Secrets
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "GHOSTLINK_DATABASE_URL secret is required."
+            exit 1
+          fi
+          if [ -z "$SECRET_KEY" ]; then
+            echo "GHOSTLINK_SECRET_KEY is empty. Set it to match production app config."
+          fi
+
+      - name: Initialize Database Schema
+        run: python -c "import asyncio; from app.db.engine import init_db; asyncio.run(init_db())"
+
+      - name: Run Bridge Raw Worker
+        run: |
+          SITE_ID="${{ github.event.inputs.site_id }}"
+          LIMIT="${{ github.event.inputs.limit }}"
+          ROUNDS="${{ github.event.inputs.rounds }}"
+          [ -z "$LIMIT" ] && LIMIT="$DEFAULT_LIMIT"
+          [ -z "$ROUNDS" ] && ROUNDS="$DEFAULT_ROUNDS"
+          [ -z "$LIMIT" ] && LIMIT="250"
+          [ -z "$ROUNDS" ] && ROUNDS="1"
+
+          if [ -n "$SITE_ID" ]; then
+            python scripts/process_bridge_raw_events.py --site-id "$SITE_ID" --limit "$LIMIT" --rounds "$ROUNDS" > bridge-worker-summary.json
+          else
+            python scripts/process_bridge_raw_events.py --limit "$LIMIT" --rounds "$ROUNDS" > bridge-worker-summary.json
+          fi
+
+          cat bridge-worker-summary.json
+
+      - name: Upload Worker Summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-worker-summary
+          path: bridge-worker-summary.json
+
+      - name: Evaluate Worker Quality Gates
+        id: gates
+        run: |
+          MAX_DROPPED_TOTAL="${{ github.event.inputs.max_dropped_total }}"
+          MAX_RETRY_RATIO_PCT="${{ github.event.inputs.max_retry_ratio_pct }}"
+          [ -z "$MAX_DROPPED_TOTAL" ] && MAX_DROPPED_TOTAL="$DEFAULT_MAX_DROPPED_TOTAL"
+          [ -z "$MAX_RETRY_RATIO_PCT" ] && MAX_RETRY_RATIO_PCT="$DEFAULT_MAX_RETRY_RATIO_PCT"
+          [ -z "$MAX_DROPPED_TOTAL" ] && MAX_DROPPED_TOTAL="50"
+          [ -z "$MAX_RETRY_RATIO_PCT" ] && MAX_RETRY_RATIO_PCT="20"
+          export MAX_DROPPED_TOTAL
+          export MAX_RETRY_RATIO_PCT
+
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          with open("bridge-worker-summary.json", "r", encoding="utf-8") as f:
+              summary = json.load(f)
+
+          processed = int(summary.get("processed_total", 0) or 0)
+          dropped = int(summary.get("dropped_total", 0) or 0)
+          retried = int(summary.get("retried_total", 0) or 0)
+          normalized = int(summary.get("normalized_total", 0) or 0)
+          max_dropped = int(float(os.getenv("MAX_DROPPED_TOTAL", "50")))
+          max_retry_ratio = float(os.getenv("MAX_RETRY_RATIO_PCT", "20"))
+          retry_ratio = (retried / processed * 100.0) if processed > 0 else 0.0
+
+          reasons: list[str] = []
+          if dropped > max_dropped:
+              reasons.append(f"dropped_total {dropped} > {max_dropped}")
+          if processed > 0 and retry_ratio > max_retry_ratio:
+              reasons.append(f"retry_ratio_pct {retry_ratio:.2f} > {max_retry_ratio:.2f}")
+
+          status = "failed" if reasons else "passed"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"status={status}\n")
+              fh.write(f"processed={processed}\n")
+              fh.write(f"normalized={normalized}\n")
+              fh.write(f"dropped={dropped}\n")
+              fh.write(f"retried={retried}\n")
+              fh.write(f"retry_ratio_pct={retry_ratio:.2f}\n")
+              fh.write(f"max_dropped={max_dropped}\n")
+              fh.write(f"max_retry_ratio_pct={max_retry_ratio:.2f}\n")
+              fh.write(f"reasons={' | '.join(reasons)}\n")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("## Bridge Raw Worker Summary\n")
+              fh.write(f"- processed_total: {processed}\n")
+              fh.write(f"- normalized_total: {normalized}\n")
+              fh.write(f"- dropped_total: {dropped}\n")
+              fh.write(f"- retried_total: {retried}\n")
+              fh.write(f"- retry_ratio_pct: {retry_ratio:.2f}\n")
+              fh.write(f"- gate(max_dropped_total): {max_dropped}\n")
+              fh.write(f"- gate(max_retry_ratio_pct): {max_retry_ratio:.2f}\n")
+              fh.write(f"- gate_status: {status}\n")
+              if reasons:
+                  fh.write(f"- gate_reasons: {'; '.join(reasons)}\n")
+
+          if status == "failed":
+              print("Quality gate failed:", "; ".join(reasons))
+              sys.exit(1)
+          PY
+
+      - name: Notify Ops Webhook on Failure
+        if: ${{ failure() && secrets.BRIDGE_WORKER_ALERT_WEBHOOK != '' }}
+        env:
+          ALERT_WEBHOOK: ${{ secrets.BRIDGE_WORKER_ALERT_WEBHOOK }}
+        run: |
+          export ALERT_MESSAGE="Bridge Raw Worker failed (${GITHUB_REPOSITORY} run ${GITHUB_RUN_ID}). status=${{ steps.gates.outputs.status }} dropped=${{ steps.gates.outputs.dropped }} retried=${{ steps.gates.outputs.retried }} retry_ratio_pct=${{ steps.gates.outputs.retry_ratio_pct }} reasons=${{ steps.gates.outputs.reasons }} details=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          payload = json.dumps({"text": os.environ["ALERT_MESSAGE"]}).encode("utf-8")
+          req = urllib.request.Request(
+              os.environ["ALERT_WEBHOOK"],
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=10) as resp:
+              print(f"alert webhook status={resp.status}")
+          PY

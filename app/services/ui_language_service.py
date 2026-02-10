@@ -13,6 +13,8 @@ UI_LANGUAGE_OPTIONS: list[tuple[str, str]] = [
     ("es", "Spanish (Español)"),
     ("fr", "French (Français)"),
     ("de", "German (Deutsch)"),
+    ("pt-br", "Portuguese BR (Português)"),
+    ("hi", "Hindi (हिन्दी)"),
 ]
 
 _VALID_CODES = {code for code, _ in UI_LANGUAGE_OPTIONS}
@@ -53,4 +55,8 @@ def resolve_ui_language(
         return "fr"
     if "de" in header:
         return "de"
+    if "pt-br" in header or "pt" in header:
+        return "pt-br"
+    if "hi" in header:
+        return "hi"
     return "en"

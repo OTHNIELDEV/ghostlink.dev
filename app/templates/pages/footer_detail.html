@@ -1,0 +1,136 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+{% set page = footer_page if footer_page is defined else {} %}
+<section class="relative overflow-hidden pb-20 pt-24">
+    <div class="absolute inset-x-0 top-0 h-[540px] bg-gradient-to-b from-emerald-500/10 via-cyan-500/5 to-transparent blur-3xl -z-10">
+    </div>
+
+    <div class="container mx-auto px-4">
+        <div class="rounded-3xl border border-slate-700/60 bg-slate-900/65 p-8 md:p-10">
+            <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">{{ page.eyebrow or 'Footer' }}</p>
+                    <h1 class="mt-2 text-3xl md:text-4xl font-extrabold text-white">{{ page.title or 'Detail Page' }}</h1>
+                    <p class="mt-3 max-w-3xl text-sm md:text-base text-slate-300">
+                        {{ page.subtitle or 'Detailed page for this footer menu entry.' }}
+                    </p>
+                </div>
+                <span
+                    class="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-200">
+                    {{ (page.status or 'live')|replace('_', ' ') }}
+                </span>
+            </div>
+
+            <div class="mt-6 flex flex-wrap gap-3">
+                {% if page.primary_cta %}
+                <a href="{{ page.primary_cta.href }}"
+                    class="rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/25">
+                    {{ page.primary_cta.label }}
+                </a>
+                {% endif %}
+                {% if page.secondary_cta %}
+                <a href="{{ page.secondary_cta.href }}"
+                    class="rounded-lg border border-slate-600 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-slate-500">
+                    {{ page.secondary_cta.label }}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <article class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6">
+                <h2 class="text-base font-semibold text-white">What You Get</h2>
+                <ul class="mt-4 space-y-3 text-sm text-slate-300">
+                    {% for item in page.highlights or [] %}
+                    <li class="flex items-start gap-2">
+                        <span class="mt-1 h-2 w-2 rounded-full bg-cyan-400"></span>
+                        <span>{{ item }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </article>
+
+            <article class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6">
+                <h2 class="text-base font-semibold text-white">Customer Confidence Levers</h2>
+                <ul class="mt-4 space-y-3 text-sm text-slate-300">
+                    {% for item in page.customer_confidence or [] %}
+                    <li class="flex items-start gap-2">
+                        <span class="mt-1 h-2 w-2 rounded-full bg-emerald-400"></span>
+                        <span>{{ item }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </article>
+
+            <article class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6">
+                <h2 class="text-base font-semibold text-white">Build Readiness</h2>
+                <ul class="mt-4 space-y-3 text-sm text-slate-300">
+                    {% for item in page.build_ready or [] %}
+                    <li class="flex items-start gap-2">
+                        <span class="mt-1 h-2 w-2 rounded-full bg-violet-400"></span>
+                        <span>{{ item }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </article>
+        </div>
+
+        {% if page.timeline %}
+        <section class="mt-8 rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6">
+            <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-white">Live Update Timeline</h2>
+                    <p class="text-sm text-slate-400">Customer-visible release and reliability updates.</p>
+                </div>
+                <span class="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-200">
+                    latest feed
+                </span>
+            </div>
+            <div class="mt-4 space-y-3">
+                {% for row in page.timeline %}
+                <article class="rounded-xl border border-slate-700/70 bg-slate-950/70 p-4">
+                    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ row.type }}</p>
+                            <h3 class="mt-1 text-sm font-semibold text-slate-100">{{ row.title }}</h3>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-500">{{ row.date }}</span>
+                            <span class="rounded-full border {% if row.evidence == 'measured' %}border-emerald-500/35 bg-emerald-500/10 text-emerald-300{% else %}border-amber-500/35 bg-amber-500/10 text-amber-300{% endif %} px-2 py-0.5 text-[10px] uppercase tracking-wider">
+                                {{ row.evidence }}
+                            </span>
+                        </div>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-300">{{ row.summary }}</p>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="mt-8 rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6">
+            <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-white">Footer Menu Explorer</h2>
+                    <p class="text-sm text-slate-400">Open every footer destination directly from one navigation board.</p>
+                </div>
+                <a href="/manual/execution-board"
+                    class="inline-flex rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-2 text-sm font-semibold text-violet-200 hover:bg-violet-500/25">
+                    Open Execution Board
+                </a>
+            </div>
+
+            <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+                {% for entry in footer_nav_items %}
+                <a href="{{ entry.href }}"
+                    class="rounded-xl border px-3 py-3 text-sm transition-colors {% if entry.slug == page.slug %}border-cyan-500/50 bg-cyan-500/10 text-cyan-200{% else %}border-slate-700/70 bg-slate-950/70 text-slate-300 hover:border-slate-500{% endif %}">
+                    <p class="text-[11px] uppercase tracking-wider text-slate-500">{{ entry.group }}</p>
+                    <p class="mt-1 font-semibold">{{ entry.label }}</p>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</section>
+{% endblock %}

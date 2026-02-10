@@ -188,6 +188,13 @@ def test_auto_optimize_loop_generate_approve_reject(optimize_prefix: str, monkey
         assert applied_action is not None
         assert applied_action.status == "applied"
 
+        evaluate = client.post(
+            "/api/v1/optimizations/actions/evaluate-applied",
+            params={"org_id": org_id},
+        )
+        assert evaluate.status_code == 200
+        assert "evaluated_count" in evaluate.json()
+
         updated_site = asyncio.run(_get_site(site.id))
         assert updated_site is not None
         assert updated_site.status == "processing"

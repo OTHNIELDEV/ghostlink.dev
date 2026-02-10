@@ -236,9 +236,14 @@ def test_manual_daily_reports_and_global_ui_language_flow():
             assert dashboard.status_code == 200
             assert "Journey Flow" in dashboard.text
             assert "All Sites Language" not in dashboard.text
-            assert "Global UI Language" in dashboard.text
+            assert 'name="language"' in dashboard.text
             assert "Save Workspace Language" not in dashboard.text
             assert 'onchange="this.form.submit()"' in dashboard.text
+            assert "Japanese (日本語)" in dashboard.text
+            assert "Chinese Simplified (简体中文)" in dashboard.text
+            assert "Hindi (हिन्दी)" in dashboard.text
+            assert "predicted" in dashboard.text.lower()
+            assert "confidence" in dashboard.text.lower()
 
             set_language = client.post(
                 "/users/ui-language",
@@ -260,16 +265,48 @@ def test_manual_daily_reports_and_global_ui_language_flow():
             assert "Customer Operations Dashboard" not in dashboard_after.text
             assert "홈" in dashboard_after.text
 
+            landing_after = client.get("/")
+            assert landing_after.status_code == 200
+            assert '<html lang="ko"' in landing_after.text
+            assert "당신의 웹사이트를" in landing_after.text
+            assert "단순하고 투명한 요금제" in landing_after.text
+            assert "Make Your Website" not in landing_after.text
+            assert "Simple, Transparent Pricing" not in landing_after.text
+
+            set_language_ja = client.post(
+                "/users/ui-language",
+                data={"language": "ja", "next_url": "/"},
+                follow_redirects=False,
+            )
+            assert set_language_ja.status_code == 303
+            assert set_language_ja.headers.get("location") == "/"
+            assert "ghostlink_ui_language=ja" in (set_language_ja.headers.get("set-cookie") or "")
+
+            landing_ja = client.get("/")
+            assert landing_ja.status_code == 200
+            assert '<html lang="ja"' in landing_ja.text
+            assert "ウェブサイトを" in landing_ja.text
+            assert "シンプルで明確な料金" in landing_ja.text
+            assert "Make Your Website" not in landing_ja.text
+
             manual_page = client.get(f"/manual?org_id={org_id}")
             assert manual_page.status_code == 200
-            assert "Customer Journey Manual" in manual_page.text
-            assert "Step 7" in manual_page.text
+            assert "고객 여정 매뉴얼" in manual_page.text
+            assert "단계 7" in manual_page.text
             assert "index.html" in manual_page.text
+            assert "/manual/execution-board" in manual_page.text
+
+            execution_board = client.get(f"/manual/execution-board?org_id={org_id}")
+            assert execution_board.status_code == 200
+            assert "고스트링크 정밀 개선 보고서" in execution_board.text
+            assert "실행 백로그" in execution_board.text
 
             daily_page = client.get(f"/reports/daily?org_id={org_id}")
             assert daily_page.status_code == 200
-            assert "Daily Reports" in daily_page.text
-            assert "Download PDF" in daily_page.text
+            assert "일일 리포트" in daily_page.text
+            assert "PDF 다운로드" in daily_page.text
+            assert "신뢰도" in daily_page.text
+            assert "고객 신뢰 내러티브" in daily_page.text
 
             daily_json = client.get(f"/api/v1/reports/daily?org_id={org_id}")
             assert daily_json.status_code == 200
@@ -279,6 +316,16 @@ def test_manual_daily_reports_and_global_ui_language_flow():
             assert payload["ai_crawler_visits"] >= 1
             assert payload["human_visits"] >= 1
             assert payload["bridge_event_count"] >= 1
+            assert payload["evidence"]["avg_visibility_score"] == "predicted"
+            assert payload["evidence"]["proof"]["answer_capture_rate_pct"] == "measured"
+            assert payload["proof"]["confidence_level"] in {"low", "medium", "high"}
+            assert "optimization_impact" in payload
+            assert "totals" in payload["optimization_impact"]
+
+            proof_overview = client.get(f"/api/v1/proof/overview?org_id={org_id}")
+            assert proof_overview.status_code == 200
+            overview_payload = proof_overview.json()
+            assert overview_payload["evidence"]["proof_score"] == "measured"
 
             daily_pdf = client.get(f"/api/v1/reports/daily.pdf?org_id={org_id}")
             assert daily_pdf.status_code == 200

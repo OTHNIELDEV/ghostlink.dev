@@ -7,7 +7,7 @@ from sqlmodel import select
 
 from app.db.engine import get_session
 from app.main import app
-from app.models.analytics import BotVisit, BridgeEvent
+from app.models.analytics import BotVisit, BridgeEvent, BridgeEventRaw
 from app.models.billing import Subscription
 from app.models.innovation import (
     AnswerCaptureQueryItem,
@@ -169,6 +169,11 @@ async def _cleanup(prefix: str) -> None:
                 ).all()
                 for row in bridge_events:
                     await session.delete(row)
+                raw_events = (
+                    await session.exec(select(BridgeEventRaw).where(BridgeEventRaw.site_id.in_(site_ids)))
+                ).all()
+                for row in raw_events:
+                    await session.delete(row)
 
             for row in sites:
                 await session.delete(row)
@@ -319,10 +324,15 @@ def test_onboarding_and_proof_center_end_to_end():
             assert proof_page.status_code == 200
             assert "Proof Center" in proof_page.text
             assert "Before / After Evidence" in proof_page.text
+            assert "Optimization Impact Narrative" in proof_page.text
 
             integration_page = client.get(f"/docs/integration-guide?org_id={org_id}&site_id={site.id}")
             assert integration_page.status_code == 200
             assert "index.html" in integration_page.text
-            assert "GhostLink Integration Guide" in integration_page.text
+            assert "GhostLink 통합 적용 가이드" in integration_page.text
+            assert "수집 성공률(7일)" in integration_page.text
+            assert "배치 인제스트 비중(7일)" in integration_page.text
+            assert "재시도 발생 이벤트(7일)" in integration_page.text
+            assert "재시도 소진 드롭(7일)" in integration_page.text
     finally:
         asyncio.run(_cleanup(prefix))

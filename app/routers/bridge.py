@@ -5,15 +5,18 @@ import json
 import logging
 import secrets
 import time
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel import select
+from sqlmodel import and_, or_, select
 from app.core.config import settings
 from app.db.engine import get_session
 from app.models.site import Site
-from app.models.analytics import BotVisit, BridgeEvent
+from app.models.analytics import BotVisit, BridgeEvent, BridgeEventRaw
 from app.services.edge_service import edge_service
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,21 @@ BOT_SIGNATURES = {
 SCRIPT_CACHE = {}
 SITE_CACHE = {}  # Key: script_id, Value: (site_id, site_url, cached_at_epoch)
 CACHE_TTL = 3600  # 1 hour in seconds
+MAX_BRIDGE_BATCH_EVENTS = 100
+MAX_CLIENT_QUEUE_SIZE = 200
+BRIDGE_RAW_WORKER_BATCH_SIZE = 250
+BRIDGE_RAW_MAX_RETRIES = 3
+BRIDGE_RAW_RETRY_BASE_SECONDS = 15
+BRIDGE_RAW_RETRY_MAX_SECONDS = 300
+ALLOWED_BRIDGE_EVENT_TYPES = {
+    "pageview",
+    "engaged_15s",
+    "hidden",
+    "leave",
+    "heartbeat",
+    "route_change",
+    "custom",
+}
 
 
 def invalidate_script_cache(script_id: str):
@@ -132,6 +150,81 @@ def _validate_event_origin(request: Request, site_url: str) -> bool:
     return True
 
 
+class BridgeBatchEvent(BaseModel):
+    event_id: str | None = Field(default=None, max_length=128)
+    event_type: str = Field(default="pageview", min_length=1, max_length=64)
+    session_id: str | None = Field(default=None, max_length=128)
+    page_url: str | None = Field(default=None, max_length=1024)
+    page_title: str | None = Field(default=None, max_length=512)
+    referrer: str | None = Field(default=None, max_length=1024)
+    language: str | None = Field(default=None, max_length=32)
+    timezone: str | None = Field(default=None, max_length=64)
+    viewport: str | None = Field(default=None, max_length=32)
+    occurred_at: str | None = Field(default=None, max_length=64)
+
+
+class BridgeBatchRequest(BaseModel):
+    events: list[BridgeBatchEvent] = Field(default_factory=list)
+    gx: str = Field(min_length=1, max_length=32)
+    gn: str = Field(min_length=1, max_length=64)
+    gs: str = Field(min_length=1, max_length=128)
+    sent_at: str | None = Field(default=None, max_length=64)
+
+
+def _normalize_event_type(raw_event_type: str | None) -> str:
+    event_type = (raw_event_type or "pageview").strip().lower()
+    if event_type not in ALLOWED_BRIDGE_EVENT_TYPES:
+        return "custom"
+    return event_type
+
+
+def _bridge_event_payload_from_query(query_params: dict[str, str]) -> dict[str, str | None]:
+    return {
+        "event_id": None,
+        "event_type": _normalize_event_type(query_params.get("e")),
+        "session_id": _clip(query_params.get("sid"), 128),
+        "page_url": _clip(query_params.get("p"), 1024),
+        "page_title": _clip(query_params.get("t"), 512),
+        "referrer": _clip(query_params.get("r"), 1024),
+        "language": _clip(query_params.get("lang"), 32),
+        "timezone": _clip(query_params.get("tz"), 64),
+        "viewport": _clip(query_params.get("vp"), 32),
+        "occurred_at": None,
+    }
+
+
+def _bridge_event_payload_from_batch(item: BridgeBatchEvent) -> dict[str, str | None]:
+    return {
+        "event_id": _clip(item.event_id, 128),
+        "event_type": _normalize_event_type(item.event_type),
+        "session_id": _clip(item.session_id, 128),
+        "page_url": _clip(item.page_url, 1024),
+        "page_title": _clip(item.page_title, 512),
+        "referrer": _clip(item.referrer, 1024),
+        "language": _clip(item.language, 32),
+        "timezone": _clip(item.timezone, 64),
+        "viewport": _clip(item.viewport, 32),
+        "occurred_at": _clip(item.occurred_at, 64),
+    }
+
+
+def _parse_occurred_at(raw: str | None) -> datetime | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        return None
+    value = raw.strip()
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
 def _build_bridge_script(site: Site, is_bot: bool, script_host: str) -> str:
     """
     Builds the JS script.
@@ -140,8 +233,12 @@ def _build_bridge_script(site: Site, is_bot: bool, script_host: str) -> str:
     """
     if not is_bot:
         analytics_endpoint = f"{script_host}/api/bridge/{site.script_id}/event"
+        batch_endpoint = f"{script_host}/api/bridge/{site.script_id}/events"
+        token_endpoint = f"{script_host}/api/bridge/{site.script_id}/token"
         token_exp, token_nonce, token_sig = _build_bridge_token(site.script_id)
         endpoint_b64 = _b64(analytics_endpoint)
+        batch_endpoint_b64 = _b64(batch_endpoint)
+        token_endpoint_b64 = _b64(token_endpoint)
         nonce_b64 = _b64(token_nonce)
         sig_b64 = _b64(token_sig)
         return f"""
@@ -156,10 +253,18 @@ def _build_bridge_script(site: Site, is_bot: bool, script_host: str) -> str:
 
     const decode = (v) => atob(v);
     const endpoint = decode({json.dumps(endpoint_b64)});
+    const batchEndpoint = decode({json.dumps(batch_endpoint_b64)});
+    const tokenEndpoint = decode({json.dumps(token_endpoint_b64)});
     const scriptId = {json.dumps(site.script_id)};
-    const tokenExp = {token_exp};
-    const tokenNonce = decode({json.dumps(nonce_b64)});
-    const tokenSig = decode({json.dumps(sig_b64)});
+    let tokenExp = {token_exp};
+    let tokenNonce = decode({json.dumps(nonce_b64)});
+    let tokenSig = decode({json.dumps(sig_b64)});
+    const MAX_BATCH_SIZE = 10;
+    const MAX_QUEUE_SIZE = {MAX_CLIENT_QUEUE_SIZE};
+    const FLUSH_INTERVAL_MS = 4000;
+    const TOKEN_REFRESH_BUFFER_SEC = 60;
+    const queue = [];
+    let flushTimer = null;
     const dntEnabled = navigator.doNotTrack === '1' || window.doNotTrack === '1';
 
     if (dntEnabled) {{
@@ -179,7 +284,26 @@ def _build_bridge_script(site: Site, is_bot: bool, script_host: str) -> str:
         sessionId = `${{Date.now().toString(36)}}-${{Math.random().toString(36).slice(2, 10)}}`;
     }}
 
-    function sendEvent(eventType) {{
+    function newEventId() {{
+        return `${{Date.now().toString(36)}}-${{Math.random().toString(36).slice(2, 10)}}-${{Math.random().toString(36).slice(2, 8)}}`;
+    }}
+
+    function buildEvent(eventType) {{
+        return {{
+            event_id: newEventId(),
+            event_type: eventType,
+            session_id: sessionId,
+            page_url: `${{location.pathname}}${{location.search}}`,
+            page_title: document.title || '',
+            referrer: document.referrer || '',
+            language: navigator.language || '',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+            viewport: `${{window.innerWidth}}x${{window.innerHeight}}`,
+            occurred_at: new Date().toISOString()
+        }};
+    }}
+
+    function sendLegacyEvent(eventType) {{
         try {{
             const params = new URLSearchParams({{
                 e: eventType,
@@ -201,16 +325,151 @@ def _build_bridge_script(site: Site, is_bot: bool, script_host: str) -> str:
         }}
     }}
 
-    sendEvent('pageview');
-    setTimeout(() => sendEvent('engaged_15s'), 15000);
+    async function refreshTokenIfNeeded(force) {{
+        const nowSec = Math.floor(Date.now() / 1000);
+        if (!force && tokenExp - nowSec > TOKEN_REFRESH_BUFFER_SEC) {{
+            return true;
+        }}
+        try {{
+            const response = await fetch(tokenEndpoint, {{
+                method: 'GET',
+                credentials: 'omit',
+                mode: 'cors',
+                keepalive: true
+            }});
+            if (!response.ok) {{
+                return false;
+            }}
+            const data = await response.json();
+            if (!data || !data.gx || !data.gn || !data.gs) {{
+                return false;
+            }}
+            tokenExp = Number(data.gx) || tokenExp;
+            tokenNonce = String(data.gn);
+            tokenSig = String(data.gs);
+            return true;
+        }} catch (_) {{
+            return false;
+        }}
+    }}
+
+    function sendBatchWithBeacon(events) {{
+        if (!navigator.sendBeacon) return false;
+        try {{
+            const body = JSON.stringify({{
+                events: events,
+                gx: String(tokenExp),
+                gn: tokenNonce,
+                gs: tokenSig,
+                sent_at: new Date().toISOString()
+            }});
+            const blob = new Blob([body], {{ type: 'application/json' }});
+            return navigator.sendBeacon(batchEndpoint, blob);
+        }} catch (_) {{
+            return false;
+        }}
+    }}
+
+    async function sendBatchWithFetch(events) {{
+        try {{
+            const response = await fetch(batchEndpoint, {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{
+                    events: events,
+                    gx: String(tokenExp),
+                    gn: tokenNonce,
+                    gs: tokenSig,
+                    sent_at: new Date().toISOString()
+                }}),
+                keepalive: true,
+                credentials: 'omit',
+                mode: 'cors'
+            }});
+            return response.ok;
+        }} catch (_) {{
+            return false;
+        }}
+    }}
+
+    function enqueueEvent(eventType) {{
+        queue.push(buildEvent(eventType));
+        if (queue.length > MAX_QUEUE_SIZE) {{
+            queue.splice(0, queue.length - MAX_QUEUE_SIZE);
+        }}
+        scheduleFlush();
+    }}
+
+    function scheduleFlush() {{
+        if (flushTimer) return;
+        flushTimer = window.setTimeout(() => {{
+            flushTimer = null;
+            void flushQueue({{ reason: 'interval', useBeacon: false }});
+        }}, FLUSH_INTERVAL_MS);
+    }}
+
+    async function flushQueue(options) {{
+        if (!queue.length) return;
+
+        const useBeacon = Boolean(options && options.useBeacon);
+        const reason = (options && options.reason) || 'interval';
+        await refreshTokenIfNeeded(false);
+        const batch = queue.splice(0, MAX_BATCH_SIZE);
+
+        let ok = false;
+        if (useBeacon) {{
+            ok = sendBatchWithBeacon(batch);
+        }}
+        if (!ok) {{
+            ok = await sendBatchWithFetch(batch);
+        }}
+
+        if (!ok) {{
+            queue.unshift(...batch);
+            if (queue.length > MAX_QUEUE_SIZE) {{
+                queue.splice(0, queue.length - MAX_QUEUE_SIZE);
+            }}
+            sendLegacyEvent(reason === 'hidden' ? 'hidden' : 'pageview');
+            return;
+        }}
+
+        if (queue.length && !useBeacon) {{
+            scheduleFlush();
+        }}
+    }}
+
+    enqueueEvent('pageview');
+    setTimeout(() => enqueueEvent('engaged_15s'), 15000);
+
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = function(...args) {{
+        const result = originalPushState.apply(this, args);
+        enqueueEvent('route_change');
+        return result;
+    }};
+
+    history.replaceState = function(...args) {{
+        const result = originalReplaceState.apply(this, args);
+        enqueueEvent('route_change');
+        return result;
+    }};
+
+    window.addEventListener('popstate', () => enqueueEvent('route_change'), {{ passive: true }});
 
     document.addEventListener('visibilitychange', () => {{
         if (document.visibilityState === 'hidden') {{
-            sendEvent('hidden');
+            enqueueEvent('hidden');
+            void flushQueue({{ reason: 'hidden', useBeacon: true }});
         }}
     }}, {{ passive: true }});
 
-    window.addEventListener('pagehide', () => sendEvent('leave'), {{ passive: true }});
+    window.addEventListener('pagehide', () => {{
+        enqueueEvent('leave');
+        void flushQueue({{ reason: 'leave', useBeacon: true }});
+    }}, {{ passive: true }});
+
     console.log('GhostLink: Analytics and optimization script active.');
 }})();
 """
@@ -269,37 +528,234 @@ async def log_visit_background(site_id: int, user_agent: str, bot_name: str):
         logger.error(f"Failed to log bot visit: {e}")
 
 
-async def log_bridge_event_background(site_id: int, user_agent: str, query_params: dict[str, str]):
+async def log_bridge_events_background(
+    site_id: int,
+    user_agent: str,
+    event_payloads: list[dict[str, str | None]],
+    ingest_source: str = "batch_post",
+):
     """
-    Save human-side interaction events without blocking page rendering.
+    Compatibility wrapper:
+    enqueue raw events, then run a normalization worker pass.
+    """
+    if not event_payloads:
+        return
+    await enqueue_bridge_raw_events_background(site_id, user_agent, event_payloads, ingest_source)
+    await process_bridge_raw_queue_background(site_id)
+
+
+def _raw_retry_delay_seconds(attempt: int) -> int:
+    safe_attempt = max(1, attempt)
+    return min(BRIDGE_RAW_RETRY_MAX_SECONDS, BRIDGE_RAW_RETRY_BASE_SECONDS * (2 ** (safe_attempt - 1)))
+
+
+async def enqueue_bridge_raw_events_background(
+    site_id: int,
+    user_agent: str,
+    event_payloads: list[dict[str, str | None]],
+    ingest_source: str = "batch_post",
+) -> int:
+    """
+    Persist raw events only. Normalization is delegated to worker functions.
     """
     from app.db.engine import engine
     from sqlmodel.ext.asyncio.session import AsyncSession
     from sqlalchemy.orm import sessionmaker
 
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    event_type = (query_params.get("e") or "pageview").lower()
-    if event_type not in {"pageview", "engaged_15s", "hidden", "leave", "heartbeat"}:
-        event_type = "custom"
+    if not event_payloads:
+        return 0
 
     try:
         async with async_session() as db_session:
-            event = BridgeEvent(
-                site_id=site_id,
-                session_id=_clip(query_params.get("sid"), 128),
-                event_type=event_type,
-                page_url=_clip(query_params.get("p"), 1024),
-                page_title=_clip(query_params.get("t"), 512),
-                referrer=_clip(query_params.get("r"), 1024),
-                language=_clip(query_params.get("lang"), 32),
-                timezone=_clip(query_params.get("tz"), 64),
-                viewport=_clip(query_params.get("vp"), 32),
-                user_agent=_clip(user_agent, 255),
-            )
-            db_session.add(event)
+            for payload in event_payloads:
+                db_session.add(
+                    BridgeEventRaw(
+                        site_id=site_id,
+                        event_id=_clip(payload.get("event_id"), 128),
+                        ingest_source=ingest_source,
+                        event_type=str(payload.get("event_type") or "custom"),
+                        payload_json=json.dumps(payload, ensure_ascii=True),
+                        request_user_agent=_clip(user_agent, 255),
+                    )
+                )
             await db_session.commit()
     except Exception as e:
-        logger.error(f"Failed to log bridge event: {e}")
+        logger.error(f"Failed to enqueue bridge raw events (count={len(event_payloads)}): {e}")
+        return 0
+
+    return len(event_payloads)
+
+
+async def _mark_raw_retry_or_drop(
+    db_session: AsyncSession,
+    row_id: int,
+    error: Exception,
+) -> None:
+    row = await db_session.get(BridgeEventRaw, row_id)
+    if row is None or row.normalized:
+        return
+
+    now_utc = datetime.utcnow()
+    attempts = int(row.retry_count or 0) + 1
+    row.retry_count = attempts
+    row.last_error = _clip(str(error), 512)
+
+    if attempts >= BRIDGE_RAW_MAX_RETRIES:
+        row.normalized = True
+        row.dropped_reason = "retry_exhausted"
+        row.normalized_at = now_utc
+        row.next_retry_at = None
+    else:
+        row.next_retry_at = now_utc + timedelta(seconds=_raw_retry_delay_seconds(attempts))
+
+    db_session.add(row)
+    await db_session.commit()
+
+
+async def process_bridge_raw_queue_background(
+    site_id: int,
+    limit: int = BRIDGE_RAW_WORKER_BATCH_SIZE,
+) -> dict[str, int]:
+    """
+    Normalize pending raw events into canonical BridgeEvent rows.
+    Includes retry/backoff for transient processing failures.
+    """
+    from app.db.engine import engine
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    summary = {
+        "processed": 0,
+        "normalized": 0,
+        "dropped": 0,
+        "retried": 0,
+    }
+
+    try:
+        async with async_session() as db_session:
+            now_utc = datetime.utcnow()
+            pending_rows = (
+                await db_session.exec(
+                    select(BridgeEventRaw)
+                    .where(
+                        and_(
+                            BridgeEventRaw.site_id == site_id,
+                            BridgeEventRaw.normalized == False,  # noqa: E712
+                            BridgeEventRaw.dropped_reason.is_(None),
+                            or_(
+                                BridgeEventRaw.next_retry_at.is_(None),
+                                BridgeEventRaw.next_retry_at <= now_utc,
+                            ),
+                        )
+                    )
+                    .order_by(BridgeEventRaw.id.asc())
+                    .limit(limit)
+                )
+            ).all()
+
+            pending_ids = [int(row.id) for row in pending_rows if row.id is not None]
+            for row_id in pending_ids:
+                row = await db_session.get(BridgeEventRaw, row_id)
+                if (
+                    row is None
+                    or row.normalized
+                    or row.dropped_reason is not None
+                ):
+                    continue
+
+                summary["processed"] += 1
+                try:
+                    payload = json.loads(row.payload_json or "{}")
+                    if not isinstance(payload, dict):
+                        raise ValueError("payload_json must decode to dict")
+                except Exception:
+                    row.normalized = True
+                    row.dropped_reason = "invalid_payload_json"
+                    row.normalized_at = now_utc
+                    row.next_retry_at = None
+                    row.last_error = None
+                    db_session.add(row)
+                    await db_session.commit()
+                    summary["dropped"] += 1
+                    continue
+
+                try:
+                    event_id = _clip(payload.get("event_id"), 128)
+                    if event_id:
+                        duplicate_exists = (
+                            await db_session.exec(
+                                select(BridgeEventRaw.id).where(
+                                    and_(
+                                        BridgeEventRaw.site_id == site_id,
+                                        BridgeEventRaw.normalized == True,  # noqa: E712
+                                        BridgeEventRaw.dropped_reason.is_(None),
+                                        BridgeEventRaw.event_id == event_id,
+                                    )
+                                )
+                            )
+                        ).first()
+                        if duplicate_exists is not None:
+                            row.normalized = True
+                            row.dropped_reason = "duplicate_event_id"
+                            row.normalized_at = now_utc
+                            row.next_retry_at = None
+                            row.last_error = None
+                            db_session.add(row)
+                            await db_session.commit()
+                            summary["dropped"] += 1
+                            continue
+
+                    event = BridgeEvent(
+                        site_id=site_id,
+                        session_id=_clip(payload.get("session_id"), 128),
+                        event_type=_normalize_event_type(payload.get("event_type")),
+                        page_url=_clip(payload.get("page_url"), 1024),
+                        page_title=_clip(payload.get("page_title"), 512),
+                        referrer=_clip(payload.get("referrer"), 1024),
+                        language=_clip(payload.get("language"), 32),
+                        timezone=_clip(payload.get("timezone"), 64),
+                        viewport=_clip(payload.get("viewport"), 32),
+                        user_agent=_clip(row.request_user_agent, 255),
+                        timestamp=_parse_occurred_at(payload.get("occurred_at")) or datetime.utcnow(),
+                    )
+                    db_session.add(event)
+
+                    row.normalized = True
+                    row.dropped_reason = None
+                    row.normalized_at = now_utc
+                    row.retry_count = 0
+                    row.next_retry_at = None
+                    row.last_error = None
+                    db_session.add(row)
+                    await db_session.commit()
+                    summary["normalized"] += 1
+                except Exception as e:
+                    await db_session.rollback()
+                    try:
+                        await _mark_raw_retry_or_drop(db_session, row_id, e)
+                        retry_row = await db_session.get(BridgeEventRaw, row_id)
+                        if retry_row and retry_row.dropped_reason == "retry_exhausted":
+                            summary["dropped"] += 1
+                        else:
+                            summary["retried"] += 1
+                    except Exception as inner_error:
+                        await db_session.rollback()
+                        logger.error(f"Failed to mark retry for raw event row_id={row_id}: {inner_error}")
+    except Exception as e:
+        logger.error(f"Failed to process bridge raw queue (site_id={site_id}): {e}")
+
+    return summary
+
+
+async def log_bridge_event_background(site_id: int, user_agent: str, query_params: dict[str, str]):
+    """
+    Save a legacy single event payload from query params.
+    """
+    event_payload = _bridge_event_payload_from_query(query_params)
+    await enqueue_bridge_raw_events_background(site_id, user_agent, [event_payload], "legacy_get")
+    await process_bridge_raw_queue_background(site_id)
 
 
 def _get_cached_site_context(script_id: str, current_time: float) -> tuple[int, str] | None:
@@ -310,6 +766,25 @@ def _get_cached_site_context(script_id: str, current_time: float) -> tuple[int, 
     if current_time - cached_at >= CACHE_TTL:
         SITE_CACHE.pop(script_id, None)
         return None
+    return site_id, site_url
+
+
+async def _resolve_site_context(
+    script_id: str,
+    current_time: float,
+    session: AsyncSession,
+) -> tuple[int, str] | None:
+    site_context = _get_cached_site_context(script_id, current_time)
+    if site_context is not None:
+        return site_context
+
+    statement = select(Site.id, Site.url).where(Site.script_id == script_id)
+    site_result = await session.exec(statement)
+    row = site_result.first()
+    if row is None:
+        return None
+    site_id, site_url = row
+    SITE_CACHE[script_id] = (site_id, site_url, current_time)
     return site_id, site_url
 
 @router.get("/bridge/{script_id}.js")
@@ -382,6 +857,41 @@ async def get_bridge_script(
     return response
 
 
+@router.get("/bridge/{script_id}/token")
+async def get_bridge_event_token(
+    script_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    current_time = time.time()
+    site_context = await _resolve_site_context(script_id, current_time, session)
+    if site_context is None:
+        return Response(
+            status_code=204,
+            headers={"Cache-Control": "no-store, max-age=0"},
+        )
+    _site_id, site_url = site_context
+
+    if not _validate_event_origin(request, site_url):
+        return Response(
+            status_code=403,
+            headers={"Cache-Control": "no-store, max-age=0"},
+        )
+
+    exp, nonce, sig = _build_bridge_token(script_id)
+    payload = {
+        "gx": str(exp),
+        "gn": nonce,
+        "gs": sig,
+        "expires_at": datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(),
+        "ttl_seconds": settings.BRIDGE_EVENT_TOKEN_TTL_SECONDS,
+    }
+    return JSONResponse(
+        content=payload,
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+
 @router.get("/bridge/{script_id}/event")
 async def collect_bridge_event(
     script_id: str,
@@ -390,21 +900,13 @@ async def collect_bridge_event(
     session: AsyncSession = Depends(get_session),
 ):
     current_time = time.time()
-    site_context = _get_cached_site_context(script_id, current_time)
-
+    site_context = await _resolve_site_context(script_id, current_time, session)
     if site_context is None:
-        statement = select(Site.id, Site.url).where(Site.script_id == script_id)
-        site_result = await session.exec(statement)
-        row = site_result.first()
-        if row is None:
-            return Response(
-                status_code=204,
-                headers={"Cache-Control": "no-store, max-age=0"},
-            )
-        site_id, site_url = row
-        SITE_CACHE[script_id] = (site_id, site_url, current_time)
-    else:
-        site_id, site_url = site_context
+        return Response(
+            status_code=204,
+            headers={"Cache-Control": "no-store, max-age=0"},
+        )
+    site_id, site_url = site_context
 
     params = dict(request.query_params)
     if not _verify_bridge_token(script_id, params.get("gx"), params.get("gn"), params.get("gs")):
@@ -420,9 +922,106 @@ async def collect_bridge_event(
         )
 
     user_agent = request.headers.get("user-agent", "")
-    background_tasks.add_task(log_bridge_event_background, site_id, user_agent, params)
+    event_payload = _bridge_event_payload_from_query(params)
+    background_tasks.add_task(
+        enqueue_bridge_raw_events_background,
+        site_id,
+        user_agent,
+        [event_payload],
+        "legacy_get",
+    )
+    background_tasks.add_task(process_bridge_raw_queue_background, site_id)
 
     return Response(
         status_code=204,
         headers={"Cache-Control": "no-store, max-age=0"},
     )
+
+
+@router.post("/bridge/{script_id}/events")
+async def collect_bridge_events(
+    script_id: str,
+    payload: BridgeBatchRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
+    current_time = time.time()
+    site_context = await _resolve_site_context(script_id, current_time, session)
+    if site_context is None:
+        return Response(
+            status_code=204,
+            headers={"Cache-Control": "no-store, max-age=0"},
+        )
+    site_id, site_url = site_context
+
+    if not _verify_bridge_token(script_id, payload.gx, payload.gn, payload.gs):
+        return Response(
+            status_code=403,
+            headers={"Cache-Control": "no-store, max-age=0"},
+        )
+
+    if not _validate_event_origin(request, site_url):
+        return Response(
+            status_code=403,
+            headers={"Cache-Control": "no-store, max-age=0"},
+        )
+
+    reasons: dict[str, int] = {}
+    accepted_payloads: list[dict[str, str | None]] = []
+    dropped_payloads: list[tuple[dict[str, str | None], str]] = []
+    seen_event_ids: set[str] = set()
+    events = payload.events or []
+
+    for idx, item in enumerate(events):
+        if idx >= MAX_BRIDGE_BATCH_EVENTS:
+            reasons["batch_limit_exceeded"] = reasons.get("batch_limit_exceeded", 0) + 1
+            dropped_payloads.append((_bridge_event_payload_from_batch(item), "batch_limit_exceeded"))
+            continue
+
+        event_id = (item.event_id or "").strip()
+        if event_id and event_id in seen_event_ids:
+            reasons["duplicate_event_id"] = reasons.get("duplicate_event_id", 0) + 1
+            dropped_payloads.append((_bridge_event_payload_from_batch(item), "duplicate_event_id"))
+            continue
+        if event_id:
+            seen_event_ids.add(event_id)
+
+        accepted_payloads.append(_bridge_event_payload_from_batch(item))
+
+    user_agent = request.headers.get("user-agent", "")
+    if dropped_payloads:
+        dropped_now = datetime.utcnow()
+        for payload_item, reason in dropped_payloads:
+            session.add(
+                BridgeEventRaw(
+                    site_id=site_id,
+                    event_id=_clip(payload_item.get("event_id"), 128),
+                    ingest_source="batch_post",
+                    event_type=str(payload_item.get("event_type") or "custom"),
+                    payload_json=json.dumps(payload_item, ensure_ascii=True),
+                    normalized=True,
+                    dropped_reason=reason,
+                    request_user_agent=_clip(user_agent, 255),
+                    normalized_at=dropped_now,
+                )
+            )
+        await session.commit()
+
+    if accepted_payloads:
+        background_tasks.add_task(
+            enqueue_bridge_raw_events_background,
+            site_id,
+            user_agent,
+            accepted_payloads,
+            "batch_post",
+        )
+        background_tasks.add_task(process_bridge_raw_queue_background, site_id)
+
+    dropped = len(events) - len(accepted_payloads)
+    return {
+        "accepted": len(accepted_payloads),
+        "dropped": dropped,
+        "reasons": reasons,
+        "server_time": datetime.now(timezone.utc).isoformat(),
+    }

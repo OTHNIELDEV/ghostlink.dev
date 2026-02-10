@@ -309,6 +309,38 @@ async def list_bandit_arms(
     }
 
 
+@router.post("/actions/evaluate-applied")
+async def evaluate_applied_actions(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    org_id = await resolve_org_id_from_request(request)
+    await require_org_membership(session, user, org_id, roles={"owner", "admin"})
+
+    evaluated_count = await optimization_service.evaluate_applied_actions(
+        session=session,
+        org_id=org_id,
+    )
+    await audit_service.log_event(
+        session=session,
+        org_id=org_id,
+        action="optimization.auto_evaluation_run",
+        actor_user_id=user.id,
+        resource_type="organization",
+        resource_id=str(org_id),
+        metadata={"evaluated_count": evaluated_count},
+        commit=True,
+    )
+    return {
+        "org_id": org_id,
+        "evaluated_count": evaluated_count,
+    }
+
+
 @router.post("/actions/{action_id}/feedback")
 async def record_action_feedback(
     action_id: int,

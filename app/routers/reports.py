@@ -47,20 +47,23 @@ async def download_daily_report_pdf(
         org_id=org_id,
         day_str=date,
     )
+    evidence = summary.get("evidence", {})
+    proof_evidence = evidence.get("proof", {}) if isinstance(evidence, dict) else {}
+    attribution_evidence = evidence.get("attribution", {}) if isinstance(evidence, dict) else {}
 
     lines: list[str] = [
         f"Organization: {summary['org_name']} (id: {summary['org_id']})",
         f"Report Date: {summary['report_date']}",
         "",
         "1) Activation & Ops",
-        f"- Active Sites: {summary['site_count']}",
-        f"- Avg Visibility Score: {summary['avg_visibility_score']}",
-        f"- Pending Approvals: {summary['pending_approvals']}",
+        f"- Active Sites [{str(evidence.get('site_count', 'measured')).upper()}]: {summary['site_count']}",
+        f"- Avg Visibility Score [{str(evidence.get('avg_visibility_score', 'predicted')).upper()}]: {summary['avg_visibility_score']}",
+        f"- Pending Approvals [{str(evidence.get('pending_approvals', 'measured')).upper()}]: {summary['pending_approvals']}",
         "",
         "2) Integration Signals",
-        f"- AI Crawler Visits: {summary['ai_crawler_visits']}",
-        f"- Human Visits: {summary['human_visits']}",
-        f"- Bridge Events: {summary['bridge_event_count']}",
+        f"- AI Crawler Visits [{str(evidence.get('ai_crawler_visits', 'measured')).upper()}]: {summary['ai_crawler_visits']}",
+        f"- Human Visits [{str(evidence.get('human_visits', 'measured')).upper()}]: {summary['human_visits']}",
+        f"- Bridge Events [{str(evidence.get('bridge_event_count', 'measured')).upper()}]: {summary['bridge_event_count']}",
     ]
 
     if summary["top_bots"]:
@@ -73,11 +76,12 @@ async def download_daily_report_pdf(
         [
             "",
             "3) Proof KPIs",
-            f"- Runs Completed: {proof['run_count']}",
-            f"- Queries Scored: {proof['total_queries_scored']}",
-            f"- Answer Capture Rate: {proof['answer_capture_rate_pct']}%",
-            f"- Citation Rate: {proof['citation_rate_pct']}%",
-            f"- Avg Quality Score: {proof['average_quality_score']}",
+            f"- Runs Completed [{str(proof_evidence.get('run_count', 'measured')).upper()}]: {proof['run_count']}",
+            f"- Queries Scored [{str(proof_evidence.get('total_queries_scored', 'measured')).upper()}]: {proof['total_queries_scored']}",
+            f"- Answer Capture Rate [{str(proof_evidence.get('answer_capture_rate_pct', 'measured')).upper()}]: {proof['answer_capture_rate_pct']}%",
+            f"- Citation Rate [{str(proof_evidence.get('citation_rate_pct', 'measured')).upper()}]: {proof['citation_rate_pct']}%",
+            f"- Avg Quality Score [{str(proof_evidence.get('average_quality_score', 'measured')).upper()}]: {proof['average_quality_score']}",
+            f"- Proof Confidence: {proof.get('confidence_level', 'low')} (sample {proof.get('sample_size', 0)})",
         ]
     )
 
@@ -86,14 +90,40 @@ async def download_daily_report_pdf(
         [
             "",
             "4) Attribution",
-            f"- Total Events: {attribution['total_events']}",
-            f"- Conversions: {attribution['conversions_total']}",
-            f"- AI Assisted Conversions: {attribution['ai_assisted_conversions']}",
-            f"- AI Assist Rate: {attribution['ai_assist_rate_pct']}%",
+            f"- Total Events [{str(attribution_evidence.get('total_events', 'measured')).upper()}]: {attribution['total_events']}",
+            f"- Conversions [{str(attribution_evidence.get('conversions_total', 'measured')).upper()}]: {attribution['conversions_total']}",
+            f"- AI Assisted Conversions [{str(attribution_evidence.get('ai_assisted_conversions', 'measured')).upper()}]: {attribution['ai_assisted_conversions']}",
+            f"- AI Assist Rate [{str(attribution_evidence.get('ai_assist_rate_pct', 'measured')).upper()}]: {attribution['ai_assist_rate_pct']}%",
+            f"- Attribution Confidence: {attribution.get('confidence_level', 'low')}",
             "",
-            "5) Site Inventory",
+            "5) Optimization Impact Narrative",
         ]
     )
+    optimization_impact = summary.get("optimization_impact", {})
+    impact_items = optimization_impact.get("items", []) if isinstance(optimization_impact, dict) else []
+    impact_totals = optimization_impact.get("totals", {}) if isinstance(optimization_impact, dict) else {}
+    lines.append(
+        "- Totals [MEASURED]: "
+        f"measured={impact_totals.get('measured_count', 0)}, "
+        f"pending={impact_totals.get('pending_count', 0)}, "
+        f"positive_lift={impact_totals.get('positive_count', 0)}"
+    )
+    if impact_items:
+        for row in impact_items[:8]:
+            evidence_type = str(row.get("evidence_type", "predicted")).upper()
+            lines.append(f"- [{evidence_type}] {row.get('title', 'Untitled action')}")
+            lines.append(f"  * {row.get('narrative', '-')}")
+            if row.get("evidence_type") == "measured":
+                delta = float(row.get("delta_proof_score", 0.0))
+                lines.append(
+                    f"  * Delta: {'+' if delta >= 0 else ''}{delta} "
+                    f"| Reward: {row.get('reward', 0.0)} "
+                    f"| Confidence: {row.get('confidence_level', 'low')}"
+                )
+    else:
+        lines.append("- No evaluated optimization narratives yet.")
+
+    lines.extend(["", "6) Site Inventory"])
     for row in summary["sites"][:30]:
         lines.append(
             f"- [{row['status']}] score {row['ai_score']} | {row['url']}"
