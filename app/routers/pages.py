@@ -1597,6 +1597,117 @@ async def proof_page(
     )
 
 
+@router.get("/approvals")
+async def approvals_page(
+    request: Request,
+    org_id: int = None,
+    status: str = "all",
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=303)
+
+    effective_org_id = await get_org_id_for_user(session, user, org_id)
+    membership = (
+        await session.exec(
+            select(Membership).where(
+                and_(
+                    Membership.org_id == effective_org_id,
+                    Membership.user_id == user.id,
+                )
+            )
+        )
+    ).first()
+    if not membership:
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    organization = (
+        await session.exec(select(Organization).where(Organization.id == effective_org_id))
+    ).first()
+
+    pending_approval_count = await _get_pending_approval_count(session, effective_org_id)
+    status_counts = await _get_approval_status_counts(session, effective_org_id)
+
+    # Filter is handled by approval_service.list_requests, passing 'status' if not 'all'
+    filter_status = None if status == "all" else status
+    approval_rows = await approval_service.list_requests(
+        session=session,
+        org_id=effective_org_id,
+        status=filter_status,
+        limit=50, 
+    )
+    serialized_approvals = await _serialize_approvals_for_ui(session, approval_rows)
+
+    return templates.TemplateResponse(
+        "pages/approvals.html",
+        {
+            "request": request,
+            "active_page": "approvals",
+            "user": user,
+            "org_id": effective_org_id,
+            "organization": organization,
+            "membership_role": membership.role,
+            "pending_approval_count": pending_approval_count,
+            "status_counts": status_counts,
+            "approvals": serialized_approvals,
+            "status_filter": status,
+            "can_review_approvals": membership.role in {"owner", "admin"},
+            **_build_ui_language_context(request, user),
+        },
+    )
+
+
+@router.get("/billing")
+async def billing_page(
+    request: Request,
+    org_id: int = None,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=303)
+
+    effective_org_id = await get_org_id_for_user(session, user, org_id)
+    membership = (
+        await session.exec(
+            select(Membership).where(
+                and_(
+                    Membership.org_id == effective_org_id,
+                    Membership.user_id == user.id,
+                )
+            )
+        )
+    ).first()
+    if not membership:
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    subscription_info = await subscription_service.get_subscription_with_org(
+        session, effective_org_id
+    )
+    
+    # Enhance subscription info with upcoming invoice if configured
+    if subscription_info.get("subscription") and subscription_info["subscription"].stripe_customer_id:
+         upcoming = await subscription_service.get_upcoming_invoice(session, effective_org_id)
+         subscription_info["upcoming_invoice"] = upcoming
+
+    pending_approval_count = await _get_pending_approval_count(session, effective_org_id)
+
+    return templates.TemplateResponse(
+        "pages/billing.html",
+        {
+            "request": request,
+            "active_page": "billing",
+            "user": user,
+            "org_id": effective_org_id,
+            "can_manage_billing": membership.role in {"owner", "admin"},
+            "subscription": subscription_info,
+            "pending_approval_count": pending_approval_count,
+            **_build_ui_language_context(request, user),
+        },
+    )
+
+
 @router.get("/docs/integration-guide")
 async def integration_guide_page(
     request: Request,

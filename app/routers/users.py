@@ -74,19 +74,29 @@ async def update_ui_language(
     if not user:
         return RedirectResponse(url="/auth/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    normalized = normalize_ui_language(language)
-    user.preferred_ui_language = normalized
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
+    try:
+        normalized = normalize_ui_language(language)
+        user.preferred_ui_language = normalized
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+    except Exception as e:
+        # Log error but don't crash the user experience
+        # logger.error(f"Failed to update UI language: {e}")
+        pass
 
     safe_next = next_url if next_url.startswith("/") else "/dashboard"
     response = RedirectResponse(url=safe_next, status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key="ghostlink_ui_language",
-        value=normalized,
+        value=normalize_ui_language(language),
         max_age=60 * 60 * 24 * 365,
         httponly=False,
         samesite="lax",
     )
     return response
+
+@router.get("/ui-language")
+async def get_ui_language_redirect():
+    # Prevent 405 Method Not Allowed if accessed via GET
+    return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
