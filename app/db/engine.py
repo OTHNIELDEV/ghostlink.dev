@@ -5,10 +5,16 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import inspect, text
 from app.core.config import settings
 
+# Handle Supabase/PostgreSQL connection pooling (disable prepared statements)
+connect_args = {}
+if "postgresql" in settings.DATABASE_URL:
+    connect_args["statement_cache_size"] = 0
+
 engine = create_async_engine(
     settings.DATABASE_URL, 
     echo=settings.ENVIRONMENT == "development",
-    future=True
+    future=True,
+    connect_args=connect_args
 )
 
 async def get_session() -> AsyncSession:

@@ -29,7 +29,12 @@ from app.routers import (
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
-app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=settings.SECRET_KEY, 
+    https_only=settings.ENVIRONMENT == "production",
+    same_site="lax"
+)
 
 app.add_middleware(
     CORSMiddleware,
