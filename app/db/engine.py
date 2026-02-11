@@ -1,44 +1,44 @@
-from sqlmodel import create_engine
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.orm import sessionmaker
+from uuid import uuid4
+
 from sqlalchemy import inspect, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.core.config import settings
 
-import ssl
-import sys
 
-# Handle Supabase/PostgreSQL connection pooling (disable prepared statements)
-connect_args = {}
-if "postgresql" in settings.DATABASE_URL or "postgres" in settings.DATABASE_URL:
-    # Supabase Transaction Mode (port 6543) requires disabling prepared statements
+def _is_postgres_url(database_url: str) -> bool:
+    return database_url.startswith("postgresql") or database_url.startswith("postgres")
+
+
+db_url = settings.DATABASE_URL
+db_url_obj = make_url(db_url)
+connect_args: dict = {}
+engine_kwargs: dict = {
+    "echo": settings.ENVIRONMENT == "development",
+    "future": True,
+}
+
+if _is_postgres_url(db_url):
+    # Prevent prepared statement collisions with asyncpg + PgBouncer transaction mode.
     connect_args["statement_cache_size"] = 0
-    # Also set prepare_threshold to None to be safe (though statement_cache_size=0 should suffice)
-    connect_args["prepared_statement_cache_size"] = 0 
-    
-    # Ensure SSL is used (Supabase requires it)
-    # asyncpg usually defaults to ssl='require' if not specified, 
-    # but let's be explicit to avoid "connection reset" or timeouts.
-    # We create a default context that trusts system CAs.
-    if settings.ENVIRONMENT == "production":
-         ctx = ssl.create_default_context()
-         ctx.check_hostname = False # Supabase certificates might not match the pooler hostname exactly in some regions
-         ctx.verify_mode = ssl.CERT_NONE # For debugging, try permissive SSL first. 
-         # Note: production should use CERT_REQUIRED, but "CERT_NONE" with "ssl=True" is often needed for 
-         # managed DBs behind poolers if the cert chain is complex. 
-         # Let's try default context first.
-         conn_ctx = ssl.create_default_context()
-         conn_ctx.check_hostname = False
-         conn_ctx.verify_mode = ssl.CERT_NONE
-         connect_args["ssl"] = conn_ctx
+    connect_args["prepared_statement_cache_size"] = 0
+    connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"
 
-    print(f"DEBUG: Creating Async Engine. Connect Args: {connect_args}")
+    # For Supabase pooler (6543), avoid SQLAlchemy connection reuse.
+    if db_url_obj.port == 6543:
+        engine_kwargs["poolclass"] = NullPool
+
+    if settings.ENVIRONMENT == "production":
+        connect_args.setdefault("ssl", "require")
 
 engine = create_async_engine(
-    settings.DATABASE_URL, 
-    echo=settings.ENVIRONMENT == "development",
-    future=True,
-    connect_args=connect_args
+    db_url,
+    connect_args=connect_args,
+    **engine_kwargs,
 )
 
 async def get_session() -> AsyncSession:
