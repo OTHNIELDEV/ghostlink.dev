@@ -80,6 +80,7 @@ async def init_db():
         await conn.run_sync(_ensure_user_columns)
         await conn.run_sync(_ensure_analytics_columns)
         await conn.run_sync(_ensure_optimization_columns)
+        await conn.run_sync(_ensure_bandit_columns)
         await conn.run_sync(_ensure_approval_columns)
 
 
@@ -179,6 +180,48 @@ def _ensure_optimization_columns(sync_conn):
         sync_conn.execute(
             text(f"ALTER TABLE optimizationaction ADD COLUMN {column_name} {column_type}")
         )
+
+
+def _ensure_bandit_columns(sync_conn):
+    inspector = inspect(sync_conn)
+
+    if "optimizationbanditarm" in inspector.get_table_names():
+        arm_existing = {col["name"] for col in inspector.get_columns("optimizationbanditarm")}
+        arm_additions = {
+            "alpha": "FLOAT DEFAULT 1.0",
+            "beta": "FLOAT DEFAULT 1.0",
+            "pulls": "INTEGER DEFAULT 0",
+            "cumulative_reward": "FLOAT DEFAULT 0.0",
+            "average_reward": "FLOAT DEFAULT 0.0",
+            "last_reward": "FLOAT",
+            "last_reward_at": "TIMESTAMP",
+            "metadata_json": "TEXT DEFAULT '{}'",
+            "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        }
+        for column_name, column_type in arm_additions.items():
+            if column_name in arm_existing:
+                continue
+            sync_conn.execute(
+                text(f"ALTER TABLE optimizationbanditarm ADD COLUMN {column_name} {column_type}")
+            )
+
+    if "optimizationbanditdecision" in inspector.get_table_names():
+        decision_existing = {col["name"] for col in inspector.get_columns("optimizationbanditdecision")}
+        decision_additions = {
+            "selected_action_id": "INTEGER",
+            "selected_arm_key": "VARCHAR",
+            "strategy": "VARCHAR DEFAULT 'thompson'",
+            "scored_candidates_json": "TEXT DEFAULT '[]'",
+            "context_json": "TEXT DEFAULT '{}'",
+            "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        }
+        for column_name, column_type in decision_additions.items():
+            if column_name in decision_existing:
+                continue
+            sync_conn.execute(
+                text(f"ALTER TABLE optimizationbanditdecision ADD COLUMN {column_name} {column_type}")
+            )
 
 
 def _ensure_approval_columns(sync_conn):
