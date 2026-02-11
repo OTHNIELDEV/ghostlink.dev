@@ -572,6 +572,33 @@
         return select ? select.value : 'auto';
     }
 
+    function extractApiError(payload, fallback) {
+        if (!payload || typeof payload !== 'object') return fallback;
+        const detail = payload.detail;
+        if (typeof detail === 'string' && detail.trim()) return detail;
+        if (detail && typeof detail === 'object' && typeof detail.message === 'string' && detail.message.trim()) {
+            return detail.message;
+        }
+        if (typeof payload.message === 'string' && payload.message.trim()) return payload.message;
+        return fallback;
+    }
+
+    async function parseApiErrorResponse(response, fallback) {
+        let payload = {};
+        let rawText = '';
+        try {
+            rawText = await response.text();
+            payload = rawText ? JSON.parse(rawText) : {};
+        } catch (_) {
+            payload = {};
+        }
+        const detail = extractApiError(payload, '');
+        if (detail) return detail;
+        const compact = (rawText || '').replace(/\s+/g, ' ').trim();
+        if (compact) return `${fallback} (${response.status}) ${compact.slice(0, 180)}`;
+        return `${fallback} (${response.status})`;
+    }
+
     async function updateReportLanguage(siteId, orgId) {
         const language = getReportSelectedLanguage();
         const response = await fetch('/api/sites/language', {
@@ -615,39 +642,33 @@
     }
 
     async function generateOptimizationActions(siteId, orgId) {
-        const response = await fetch(`/api/v1/optimizations/sites/${siteId}/actions/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `org_id=${encodeURIComponent(orgId)}`
+        const response = await fetch(`/api/v1/optimizations/sites/${siteId}/actions/generate?org_id=${encodeURIComponent(orgId)}`, {
+            method: 'POST'
         });
         if (!response.ok) {
-            alert('Failed to generate optimization actions.');
+            emitToast(await parseApiErrorResponse(response, 'Failed to generate optimization actions.'));
             return;
         }
         window.location.reload();
     }
 
     async function approveOptimizationAction(actionId, orgId) {
-        const response = await fetch(`/api/v1/optimizations/actions/${actionId}/approve`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `org_id=${encodeURIComponent(orgId)}`
+        const response = await fetch(`/api/v1/optimizations/actions/${actionId}/approve?org_id=${encodeURIComponent(orgId)}`, {
+            method: 'POST'
         });
         if (!response.ok) {
-            alert('Failed to approve optimization action.');
+            emitToast(await parseApiErrorResponse(response, 'Failed to approve optimization action.'));
             return;
         }
         window.location.reload();
     }
 
     async function rejectOptimizationAction(actionId, orgId) {
-        const response = await fetch(`/api/v1/optimizations/actions/${actionId}/reject`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `org_id=${encodeURIComponent(orgId)}`
+        const response = await fetch(`/api/v1/optimizations/actions/${actionId}/reject?org_id=${encodeURIComponent(orgId)}`, {
+            method: 'POST'
         });
         if (!response.ok) {
-            alert('Failed to reject optimization action.');
+            emitToast(await parseApiErrorResponse(response, 'Failed to reject optimization action.'));
             return;
         }
         window.location.reload();

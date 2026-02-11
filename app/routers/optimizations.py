@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlmodel import and_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+import logging
 
 from app.core.rbac import get_request_value, require_org_membership, resolve_org_id_from_request
 from app.db.engine import get_session
@@ -17,6 +18,7 @@ from app.services.optimization_service import optimization_service
 
 
 router = APIRouter(prefix="/optimizations", tags=["optimizations"])
+logger = logging.getLogger(__name__)
 
 
 class ActionFeedbackRequest(BaseModel):
@@ -119,17 +121,37 @@ async def generate_actions(
     await require_org_membership(session, user, org_id)
     site = await _get_site_for_org(session, site_id, org_id)
 
-    created = await optimization_service.generate_actions_for_site(
-        session=session,
-        site=site,
-        org_id=org_id,
-    )
-    actions = await optimization_service.list_actions(
-        session=session,
-        site_id=site_id,
-        org_id=org_id,
-        include_closed=False,
-    )
+    try:
+        try:
+            created = await optimization_service.generate_actions_for_site(
+                session=session,
+                site=site,
+                org_id=org_id,
+            )
+        except TypeError as exc:
+            # Backward-compat shim for mixed deployments with older service signatures.
+            if "unexpected keyword argument 'org_id'" not in str(exc):
+                raise
+            created = await optimization_service.generate_actions_for_site(
+                session=session,
+                site=site,
+            )
+
+        actions = await optimization_service.list_actions(
+            session=session,
+            site_id=site_id,
+            org_id=org_id,
+            include_closed=False,
+        )
+    except Exception as exc:
+        logger.exception(
+            "Failed to generate optimization actions (site_id=%s, org_id=%s, user_id=%s)",
+            site_id,
+            org_id,
+            user.id if user else None,
+        )
+        raise HTTPException(status_code=500, detail=f"Generate actions failed: {str(exc)[:400]}")
+
     await audit_service.log_event(
         session=session,
         org_id=org_id,

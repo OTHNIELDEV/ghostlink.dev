@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     BRIDGE_SIGNING_SECRET: str = ""
     BRIDGE_EVENT_TOKEN_TTL_SECONDS: int = 900
     SALES_CONTACT_EMAIL: str = "sales@ghostlink.io"
+    DB_AUTO_INIT_ON_STARTUP: bool | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -74,6 +75,12 @@ class Settings(BaseSettings):
             elif self.DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in self.DATABASE_URL:
                  print("DEBUG: Auto-fixing postgresql:// to postgresql+asyncpg://")
                  self.DATABASE_URL = self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+        # Default startup behavior:
+        # - development/test: run full schema bootstrap
+        # - production: skip heavy bootstrap and only validate DB connectivity
+        if self.DB_AUTO_INIT_ON_STARTUP is None:
+            self.DB_AUTO_INIT_ON_STARTUP = self.ENVIRONMENT != "production"
                  
         return self
 

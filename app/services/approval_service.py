@@ -107,11 +107,14 @@ class ApprovalService:
         session: AsyncSession,
         org_id: int,
         status: Optional[str] = None,
+        limit: Optional[int] = None,
     ) -> list[ApprovalRequest]:
         query = select(ApprovalRequest).where(ApprovalRequest.org_id == org_id)
         if status:
             query = query.where(ApprovalRequest.status == status)
         query = query.order_by(ApprovalRequest.created_at.desc())
+        if isinstance(limit, int) and limit > 0:
+            query = query.limit(limit)
         result = await session.exec(query)
         return result.all()
 

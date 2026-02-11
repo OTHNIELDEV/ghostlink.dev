@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -58,6 +58,20 @@ app.add_middleware(
     TrustedHostMiddleware, 
     allowed_hosts=["*"]
 )
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    import time
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    
+    # Log requests that take longer than 500ms to help identify slow endpoints
+    if process_time > 0.5:
+        logger.warning(f"Slow Request: {request.method} {request.url.path} took {process_time:.4f}s")
+    
+    return response
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
