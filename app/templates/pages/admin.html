@@ -1,0 +1,170 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    {% include 'components/sidebar.html' %}
+
+    <div class="flex-1 overflow-auto p-8">
+        <div class="max-w-7xl mx-auto space-y-8 pb-10">
+            <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-white">Admin CRM</h1>
+                    <p class="text-slate-400 mt-2">Customer operations and billing response workspace. Superuser sees all orgs, owner/admin sees scoped org data.</p>
+                </div>
+                <form method="get" action="/admin" class="flex items-center gap-2">
+                    <input
+                        type="text"
+                        name="q"
+                        value="{{ search_query }}"
+                        placeholder="Search org, slug, billing email, user email..."
+                        class="w-80 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40">
+                    <input
+                        type="number"
+                        name="limit"
+                        min="20"
+                        max="300"
+                        value="{{ result_limit }}"
+                        class="w-24 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40">
+                    <button
+                        type="submit"
+                        class="rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/30 transition-colors">
+                        Search
+                    </button>
+                </form>
+            </div>
+
+            <section class="glass rounded-2xl border border-slate-700/60 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-700/60 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-white">Organization CRM + Billing</h2>
+                    <span class="text-xs text-slate-400">{{ org_crm_rows|length }} orgs</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left min-w-[1200px]">
+                        <thead class="bg-slate-900/70 text-slate-400 text-xs uppercase tracking-wider">
+                            <tr>
+                                <th class="px-4 py-3">Org</th>
+                                <th class="px-4 py-3">Owner / Billing</th>
+                                <th class="px-4 py-3">Members / Sites</th>
+                                <th class="px-4 py-3">Plan / Status</th>
+                                <th class="px-4 py-3">Stripe IDs</th>
+                                <th class="px-4 py-3">Latest Invoice</th>
+                                <th class="px-4 py-3 text-right">Ops</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800 text-sm text-slate-200">
+                            {% for row in org_crm_rows %}
+                            <tr class="hover:bg-slate-900/40">
+                                <td class="px-4 py-3 align-top">
+                                    <div class="font-semibold text-white">#{{ row.org_id }} {{ row.name }}</div>
+                                    <div class="text-xs text-slate-400 mt-1">{{ row.slug }}</div>
+                                </td>
+                                <td class="px-4 py-3 align-top">
+                                    <div class="text-slate-100">{{ row.owner_email or '-' }}</div>
+                                    <div class="text-xs text-slate-400 mt-1">{{ row.billing_email or '-' }}</div>
+                                </td>
+                                <td class="px-4 py-3 align-top">
+                                    <div>{{ row.members }} members</div>
+                                    <div class="text-xs text-slate-400 mt-1">{{ row.sites }} sites</div>
+                                </td>
+                                <td class="px-4 py-3 align-top">
+                                    <div class="font-semibold text-emerald-300">{{ row.plan_code }}</div>
+                                    <div class="text-xs text-slate-400 mt-1">{{ row.status }}</div>
+                                    {% if row.cancel_at_period_end %}
+                                    <div class="text-xs text-amber-300 mt-1">cancel at period end</div>
+                                    {% endif %}
+                                    {% if row.current_period_end %}
+                                    <div class="text-xs text-slate-500 mt-1">ends {{ row.current_period_end.strftime('%Y-%m-%d') }}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 align-top">
+                                    <div class="font-mono text-xs text-slate-300 break-all">{{ row.stripe_customer_id or '-' }}</div>
+                                    <div class="font-mono text-xs text-slate-500 break-all mt-1">{{ row.stripe_subscription_id or '-' }}</div>
+                                </td>
+                                <td class="px-4 py-3 align-top">
+                                    {% if row.latest_invoice_total is not none %}
+                                    <div class="text-slate-100">
+                                        {{ "%.2f"|format((row.latest_invoice_total or 0) / 100) }} {{ (row.latest_invoice_currency or 'usd')|upper }}
+                                    </div>
+                                    <div class="text-xs text-slate-400 mt-1">{{ row.latest_invoice_status }}</div>
+                                    {% if row.latest_invoice_at %}
+                                    <div class="text-xs text-slate-500 mt-1">{{ row.latest_invoice_at.strftime('%Y-%m-%d') }}</div>
+                                    {% endif %}
+                                    {% else %}
+                                    <div class="text-slate-500">-</div>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 align-top text-right">
+                                    <div class="inline-flex flex-col items-end gap-1">
+                                        <a href="/dashboard?org_id={{ row.org_id }}" class="text-emerald-300 hover:text-emerald-200 text-xs">Dashboard</a>
+                                        <a href="/billing?org_id={{ row.org_id }}" class="text-cyan-300 hover:text-cyan-200 text-xs">Billing</a>
+                                        <a href="/approvals?org_id={{ row.org_id }}" class="text-violet-300 hover:text-violet-200 text-xs">Approvals</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="px-4 py-8 text-center text-slate-400">No organizations found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="glass rounded-2xl border border-slate-700/60 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-700/60 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-white">User CRM</h2>
+                    <span class="text-xs text-slate-400">{{ user_crm_rows|length }} users</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left min-w-[980px]">
+                        <thead class="bg-slate-900/70 text-slate-400 text-xs uppercase tracking-wider">
+                            <tr>
+                                <th class="px-4 py-3">User</th>
+                                <th class="px-4 py-3">Role</th>
+                                <th class="px-4 py-3">Organizations</th>
+                                <th class="px-4 py-3">Last Login</th>
+                                <th class="px-4 py-3">Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800 text-sm text-slate-200">
+                            {% for row in user_crm_rows %}
+                            <tr class="hover:bg-slate-900/40">
+                                <td class="px-4 py-3 align-top">
+                                    <div class="font-semibold text-white">#{{ row.user_id }} {{ row.email }}</div>
+                                    <div class="text-xs text-slate-400 mt-1">{{ row.full_name or '-' }}</div>
+                                </td>
+                                <td class="px-4 py-3 align-top">
+                                    <div class="text-slate-100">{{ 'superuser' if row.is_superuser else 'user' }}</div>
+                                    <div class="text-xs text-slate-400 mt-1">{{ 'active' if row.is_active else 'inactive' }}</div>
+                                </td>
+                                <td class="px-4 py-3 align-top">
+                                    <div>{{ row.org_count }} memberships</div>
+                                    <div class="text-xs text-slate-400 mt-1">
+                                        {% if row.org_slugs %}
+                                            {{ row.org_slugs|join(', ') }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 align-top text-slate-300">
+                                    {{ row.last_login_at.strftime('%Y-%m-%d %H:%M') if row.last_login_at else '-' }}
+                                </td>
+                                <td class="px-4 py-3 align-top text-slate-400">
+                                    {{ row.updated_at.strftime('%Y-%m-%d %H:%M') if row.updated_at else '-' }}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="px-4 py-8 text-center text-slate-400">No users found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -60,6 +60,18 @@
                 </svg>
                 {{ tr.get('sidebar_billing', 'Billing') }}
             </a>
+            {% set can_open_admin = user and (user.is_superuser or (membership_role is defined and membership_role in ['owner', 'admin'])) %}
+            {% if can_open_admin %}
+            <a href="/admin"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'admin' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
+                <svg class="w-5 h-5 {% if active_page == 'admin' %}text-emerald-500{% endif %}" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 7h18M3 12h18M3 17h18"></path>
+                </svg>
+                Admin CRM
+            </a>
+            {% endif %}
             <a href="/manual{{ org_query }}"
                 class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors {% if active_page == 'manual' %} bg-slate-800 text-white border border-slate-700/50 {% else %} text-slate-400 hover:text-white hover:bg-slate-800/50 {% endif %}">
                 <svg class="w-5 h-5 {% if active_page == 'manual' %}text-emerald-500{% endif %}" fill="none"

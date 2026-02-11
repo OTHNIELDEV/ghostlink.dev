@@ -53,6 +53,11 @@
                     <a href="/billing"
                         class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">{{
                         tr.get('nav_billing', 'Billing') }}</a>
+                    {% set can_open_admin = user and (user.is_superuser or (membership_role is defined and membership_role in ['owner', 'admin'])) %}
+                    {% if can_open_admin %}
+                    <a href="/admin"
+                        class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Admin CRM</a>
+                    {% endif %}
                     <a href="/manual"
                         class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">{{
                         tr.get('nav_manual', 'Manual') }}</a>

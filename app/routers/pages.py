@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel import func, select, and_
+from sqlmodel import func, select, and_, or_
 from app.db.engine import get_session
 from app.models.approval import ApprovalRequest
 from app.models.site import Site
@@ -33,7 +33,8 @@ from app.services.ui_language_service import (
 from app.services.i18n_service import get_i18n_messages
 from app.services.subscription_service import subscription_service
 from app.services.optimization_service import optimization_service
-from app.billing.plans import get_all_plans
+from app.billing.plans import get_all_plans, get_public_plans, normalize_plan_code
+from app.models.billing import Invoice, Subscription
 from starlette.templating import Jinja2Templates
 from typing import Any, Optional
 
@@ -103,7 +104,7 @@ FOOTER_PAGE_DETAILS: dict[str, dict[str, Any]] = {
         "subtitle": "Plans are aligned to proof cadence, governance depth, and team operating scale.",
         "status": "live",
         "highlights": [
-            "Transparent plan ladder from Free to Enterprise.",
+            "Transparent 3-tier plan ladder from Starter to Enterprise.",
             "Usage limits tied to sites, scans, and team seats.",
             "Monthly and yearly billing options with Stripe-backed flows.",
             "Enterprise path includes custom contract and governance support.",
@@ -732,11 +733,8 @@ async def _get_pending_approvals(
 
 
 def _build_plan_value_ladder(current_plan_code: str) -> list[dict[str, Any]]:
+    normalized_current_plan = normalize_plan_code(current_plan_code)
     outcome_copy = {
-        "free": {
-            "headline": "Get First Proof",
-            "value": "Run initial scan and baseline visibility score.",
-        },
         "starter": {
             "headline": "Weekly Proof Ops",
             "value": "Track proof KPIs across multiple sites and teams.",
@@ -745,17 +743,13 @@ def _build_plan_value_ladder(current_plan_code: str) -> list[dict[str, Any]]:
             "headline": "Growth Proof Engine",
             "value": "Scale answer capture runs and conversion attribution.",
         },
-        "business": {
-            "headline": "Revenue-Linked Proof",
-            "value": "Automate proof loops with larger traffic and data windows.",
-        },
         "enterprise": {
             "headline": "Executive AI Visibility Program",
             "value": "Custom governance, SLA, and enterprise-grade rollout.",
         },
     }
     ladders = []
-    for plan in get_all_plans():
+    for plan in get_all_plans(public_only=True):
         limits = plan.limits if isinstance(plan.limits, dict) else {}
         ladders.append(
             {
@@ -766,7 +760,7 @@ def _build_plan_value_ladder(current_plan_code: str) -> list[dict[str, Any]]:
                 "sites_limit": limits.get("sites", 0),
                 "scan_limit": limits.get("site_scans_per_month", 0),
                 "team_limit": limits.get("team_members", 1),
-                "is_current": plan.code == current_plan_code,
+                "is_current": plan.code == normalized_current_plan,
                 "is_enterprise": plan.is_enterprise,
             }
         )
@@ -929,7 +923,7 @@ async def report_page(
 
 @router.get("/")
 async def landing(request: Request, user: Optional[User] = Depends(get_current_user)):
-    plans = get_all_plans()
+    plans = get_public_plans()
     return templates.TemplateResponse(
         "pages/landing.html",
         {
@@ -1721,6 +1715,229 @@ async def billing_page(
     )
 
 
+@router.get("/admin")
+async def admin_page(
+    request: Request,
+    org_id: int = None,
+    q: str = "",
+    limit: int = 100,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=303)
+
+    bounded_limit = min(max(int(limit or 100), 20), 300)
+    search_term = (q or "").strip().lower()
+    like_pattern = f"%{search_term}%"
+    scoped_org_id: Optional[int] = None
+
+    if not user.is_superuser:
+        try:
+            scoped_org_id = await get_org_id_for_user(session, user, org_id)
+        except HTTPException as exc:
+            logger.info("Admin page denied for user_id=%s: %s", user.id, exc.detail)
+            raise HTTPException(status_code=403, detail="Admin access required")
+        membership = (
+            await session.exec(
+                select(Membership).where(
+                    and_(
+                        Membership.org_id == scoped_org_id,
+                        Membership.user_id == user.id,
+                    )
+                )
+            )
+        ).first()
+        if not membership or membership.role not in {"owner", "admin"}:
+            raise HTTPException(status_code=403, detail="Admin access required")
+
+    org_query = select(Organization).order_by(Organization.updated_at.desc()).limit(bounded_limit)
+    if scoped_org_id is not None:
+        org_query = org_query.where(Organization.id == scoped_org_id)
+    if search_term:
+        org_query = org_query.where(
+            or_(
+                func.lower(Organization.name).like(like_pattern),
+                func.lower(Organization.slug).like(like_pattern),
+                func.lower(func.coalesce(Organization.billing_email, "")).like(like_pattern),
+            )
+        )
+    org_rows = (await session.exec(org_query)).all()
+    org_ids = [row.id for row in org_rows if row.id is not None]
+
+    subscriptions_by_org: dict[int, Subscription] = {}
+    owner_email_by_org: dict[int, str] = {}
+    member_count_by_org: dict[int, int] = {}
+    site_count_by_org: dict[int, int] = {}
+    latest_invoice_by_org: dict[int, Invoice] = {}
+
+    if org_ids:
+        subscription_rows = (
+            await session.exec(select(Subscription).where(Subscription.org_id.in_(org_ids)))
+        ).all()
+        subscriptions_by_org = {row.org_id: row for row in subscription_rows}
+
+        owner_rows = (
+            await session.exec(
+                select(Membership.org_id, User.email)
+                .join(User, User.id == Membership.user_id)
+                .where(
+                    and_(
+                        Membership.org_id.in_(org_ids),
+                        Membership.role == "owner",
+                    )
+                )
+            )
+        ).all()
+        for org_id_value, owner_email in owner_rows:
+            if org_id_value not in owner_email_by_org:
+                owner_email_by_org[int(org_id_value)] = str(owner_email or "")
+
+        member_counts = (
+            await session.exec(
+                select(Membership.org_id, func.count(Membership.user_id))
+                .where(Membership.org_id.in_(org_ids))
+                .group_by(Membership.org_id)
+            )
+        ).all()
+        member_count_by_org = {int(org_id_value): int(count or 0) for org_id_value, count in member_counts}
+
+        site_counts = (
+            await session.exec(
+                select(Site.org_id, func.count(Site.id))
+                .where(Site.org_id.in_(org_ids))
+                .group_by(Site.org_id)
+            )
+        ).all()
+        site_count_by_org = {int(org_id_value): int(count or 0) for org_id_value, count in site_counts}
+
+        invoice_rows = (
+            await session.exec(
+                select(Invoice)
+                .where(Invoice.org_id.in_(org_ids))
+                .order_by(Invoice.created_at.desc())
+                .limit(max(200, bounded_limit))
+            )
+        ).all()
+        for invoice in invoice_rows:
+            if invoice.org_id not in latest_invoice_by_org:
+                latest_invoice_by_org[invoice.org_id] = invoice
+
+    org_crm_rows: list[dict[str, Any]] = []
+    for organization in org_rows:
+        if organization.id is None:
+            continue
+        subscription = subscriptions_by_org.get(organization.id)
+        latest_invoice = latest_invoice_by_org.get(organization.id)
+        org_crm_rows.append(
+            {
+                "org_id": organization.id,
+                "name": organization.name,
+                "slug": organization.slug,
+                "billing_email": organization.billing_email,
+                "owner_email": owner_email_by_org.get(organization.id),
+                "members": member_count_by_org.get(organization.id, 0),
+                "sites": site_count_by_org.get(organization.id, 0),
+                "plan_code": subscription.plan_code if subscription else "free",
+                "status": (
+                    subscription.status.value
+                    if subscription and hasattr(subscription.status, "value")
+                    else (str(subscription.status) if subscription else "inactive")
+                ),
+                "stripe_customer_id": subscription.stripe_customer_id if subscription else None,
+                "stripe_subscription_id": subscription.stripe_subscription_id if subscription else None,
+                "cancel_at_period_end": subscription.cancel_at_period_end if subscription else False,
+                "current_period_end": subscription.current_period_end if subscription else None,
+                "latest_invoice_total": latest_invoice.total if latest_invoice else None,
+                "latest_invoice_currency": latest_invoice.currency if latest_invoice else None,
+                "latest_invoice_status": latest_invoice.status if latest_invoice else None,
+                "latest_invoice_at": latest_invoice.created_at if latest_invoice else None,
+            }
+        )
+
+    if scoped_org_id is not None:
+        user_query = (
+            select(User)
+            .join(Membership, Membership.user_id == User.id)
+            .where(Membership.org_id == scoped_org_id)
+        )
+    else:
+        user_query = select(User)
+
+    if search_term:
+        user_query = user_query.where(
+            or_(
+                func.lower(User.email).like(like_pattern),
+                func.lower(func.coalesce(User.full_name, "")).like(like_pattern),
+            )
+        )
+    user_query = user_query.order_by(User.updated_at.desc()).limit(bounded_limit)
+    user_rows = (await session.exec(user_query)).all()
+    user_ids = [row.id for row in user_rows if row.id is not None]
+
+    membership_count_by_user: dict[int, int] = {}
+    org_names_by_user: dict[int, list[str]] = {}
+    if user_ids:
+        membership_counts = (
+            await session.exec(
+                select(Membership.user_id, func.count(Membership.org_id))
+                .where(Membership.user_id.in_(user_ids))
+                .group_by(Membership.user_id)
+            )
+        ).all()
+        membership_count_by_user = {
+            int(user_id_value): int(count or 0) for user_id_value, count in membership_counts
+        }
+
+        membership_org_rows = (
+            await session.exec(
+                select(Membership.user_id, Organization.slug)
+                .join(Organization, Organization.id == Membership.org_id)
+                .where(Membership.user_id.in_(user_ids))
+            )
+        ).all()
+        for user_id_value, org_slug in membership_org_rows:
+            key = int(user_id_value)
+            org_names_by_user.setdefault(key, [])
+            if len(org_names_by_user[key]) < 4:
+                org_names_by_user[key].append(str(org_slug or ""))
+
+    user_crm_rows: list[dict[str, Any]] = []
+    for row in user_rows:
+        if row.id is None:
+            continue
+        user_crm_rows.append(
+            {
+                "user_id": row.id,
+                "email": row.email,
+                "full_name": row.full_name,
+                "is_active": row.is_active,
+                "is_superuser": row.is_superuser,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
+                "last_login_at": row.last_login_at,
+                "org_count": membership_count_by_user.get(row.id, 0),
+                "org_slugs": org_names_by_user.get(row.id, []),
+            }
+        )
+
+    return templates.TemplateResponse(
+        "pages/admin.html",
+        {
+            "request": request,
+            "active_page": "admin",
+            "user": user,
+            "org_id": scoped_org_id,
+            "pending_approval_count": 0,
+            "search_query": q,
+            "result_limit": bounded_limit,
+            "org_crm_rows": org_crm_rows,
+            "user_crm_rows": user_crm_rows,
+            **_build_ui_language_context(request, user),
+        },
+    )
+
+
 @router.get("/docs/integration-guide")
 async def integration_guide_page(
     request: Request,
@@ -1941,56 +2158,6 @@ async def integration_guide_page(
             **_build_ui_language_context(request, user),
         },
     )
-
-
-@router.get("/billing")
-async def billing_page(
-    request: Request, 
-    org_id: int = None,
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user)
-):
-    if not user: 
-        return RedirectResponse(url="/auth/login", status_code=303)
-    
-    effective_org_id = await get_org_id_for_user(session, user, org_id)
-    membership = (
-        await session.exec(
-            select(Membership).where(
-                and_(
-                    Membership.org_id == effective_org_id,
-                    Membership.user_id == user.id,
-                )
-            )
-        )
-    ).first()
-    if not membership:
-        return RedirectResponse(url="/dashboard", status_code=303)
-    pending_approval_count = await _get_pending_approval_count(session, effective_org_id)
-    
-    subscription_info = await subscription_service.get_subscription_with_org(
-        session, effective_org_id
-    )
-    subscription_info["upcoming_invoice"] = None
-    if subscription_info["subscription"].stripe_customer_id:
-        subscription_info["upcoming_invoice"] = await subscription_service.get_upcoming_invoice(
-            session, effective_org_id
-        )
-    
-    return templates.TemplateResponse("pages/billing.html", {
-        "request": request, 
-        "active_page": "billing", 
-        "user": user,
-        "org_id": effective_org_id,
-        "subscription": subscription_info,
-        "pending_approval_count": pending_approval_count,
-        "membership_role": membership.role,
-        "can_manage_billing": membership.role in {"owner", "admin"},
-        **_build_ui_language_context(request, user),
-    })
-
-
-
 
 @router.get("/features")
 async def features_page(
