@@ -33,7 +33,7 @@ from app.services.ui_language_service import (
 from app.services.i18n_service import get_i18n_messages
 from app.services.subscription_service import subscription_service
 from app.services.optimization_service import optimization_service
-from app.billing.plans import get_all_plans, normalize_plan_code
+from app.billing.plan_compat import get_all_plans, normalize_plan_code
 from app.models.billing import Invoice, Subscription
 from starlette.templating import Jinja2Templates
 from typing import Any, Optional

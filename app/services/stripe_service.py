@@ -1,6 +1,7 @@
 import stripe
 from typing import Optional, Dict, Any
 from app.core.config import settings
+from app.billing.plan_compat import normalize_plan_code
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -143,6 +144,8 @@ class StripeService:
         if interval not in {"month", "year"}:
             return None
 
+        normalized_plan = normalize_plan_code(plan_code)
+
         # Backward-compatible fallback order:
         # 1) explicit interval key, 2) legacy single key.
         price_candidates = {
@@ -157,7 +160,8 @@ class StripeService:
             ("enterprise", "month"): settings.STRIPE_PRICE_ENTERPRISE_MONTH or settings.STRIPE_PRICE_ENTERPRISE,
             ("enterprise", "year"): settings.STRIPE_PRICE_ENTERPRISE_YEAR or settings.STRIPE_PRICE_ENTERPRISE,
         }
-        return price_candidates.get((plan_code, interval))
+        # Plan aliases are normalized before lookup.
+        return price_candidates.get((normalized_plan, interval))
 
     def get_plan_code_for_price_id(self, price_id: Optional[str]) -> Optional[str]:
         if not price_id:
@@ -191,7 +195,7 @@ class StripeService:
         for plan_code, ids in price_candidates.items():
             for configured_price_id in ids:
                 if configured_price_id:
-                    mapping[configured_price_id] = plan_code
+                    mapping[configured_price_id] = normalize_plan_code(plan_code)
         return mapping.get(price_id)
     
     def get_invoices(

@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from sqlmodel import and_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.billing.plans import get_all_plans
+from app.billing.plan_compat import is_valid_plan_code, normalize_plan_code
 from app.core.config import settings
 from app.models.approval import ApprovalRequest
 from app.models.organization import Organization
@@ -31,12 +31,12 @@ class ApprovalService:
         return req_type
 
     def _normalize_plan_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        plan_code = str(payload.get("plan_code", "")).strip().lower()
+        raw_plan_code = str(payload.get("plan_code", "")).strip().lower()
+        plan_code = normalize_plan_code(raw_plan_code)
         if not plan_code:
             raise HTTPException(status_code=400, detail="plan_code is required for billing_plan_change")
 
-        valid_plan_codes = {plan.code for plan in get_all_plans()}
-        if plan_code not in valid_plan_codes:
+        if not is_valid_plan_code(raw_plan_code):
             raise HTTPException(status_code=400, detail="Invalid plan_code")
 
         interval_raw = str(payload.get("interval", "month")).strip().lower()

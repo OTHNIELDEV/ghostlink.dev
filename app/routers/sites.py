@@ -18,7 +18,7 @@ from app.services.language_service import (
     resolve_effective_language_code,
 )
 from app.services.subscription_service import subscription_service
-from app.billing.plans import get_plan_limit
+from app.billing.plan_compat import get_plan_limit
 from app.routers.users import get_current_user
 from starlette.templating import Jinja2Templates
 

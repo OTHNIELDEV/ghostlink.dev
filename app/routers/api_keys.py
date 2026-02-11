@@ -15,6 +15,7 @@ from app.models.organization import Membership
 from app.routers.users import get_current_user
 from app.services.audit_service import audit_service
 from app.services.subscription_service import subscription_service
+from app.billing.plan_compat import normalize_plan_code
 import hashlib
 
 router = APIRouter(tags=["api-keys"])
@@ -100,12 +101,12 @@ async def create_api_key(
     )
     existing_keys = len(result.all())
     
+    normalized_plan_code = normalize_plan_code(plan.plan_code)
+
     max_keys = 5
-    if plan.plan_code == "pro":
+    if normalized_plan_code == "pro":
         max_keys = 20
-    elif plan.plan_code == "business":
-        max_keys = 100
-    elif plan.plan_code == "enterprise":
+    elif normalized_plan_code == "enterprise":
         max_keys = -1
     
     if max_keys != -1 and existing_keys >= max_keys:

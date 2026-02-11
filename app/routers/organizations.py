@@ -9,7 +9,7 @@ from app.models.organization import Organization, Membership, OrganizationCreate
 from app.models.billing import Subscription
 from app.routers.users import get_current_user
 from app.services.subscription_service import subscription_service
-from app.billing.plans import get_plan_limit
+from app.billing.plan_compat import get_plan_limit
 import secrets
 import string
 

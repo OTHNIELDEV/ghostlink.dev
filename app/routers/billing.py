@@ -17,7 +17,11 @@ from app.services.approval_service import approval_service
 from app.services.audit_service import audit_service
 from app.services.stripe_service import stripe_service
 from app.services.subscription_service import subscription_service
-from app.billing.plans import get_all_plans
+from app.billing.plan_compat import (
+    get_all_plans,
+    is_valid_plan_code,
+    normalize_plan_code,
+)
 import logging
 
 router = APIRouter(tags=["billing"])
@@ -99,7 +103,8 @@ async def _require_billing_manager_or_request_approval(
 @router.get("/plans")
 async def list_plans():
     return {
-        "plans": get_all_plans(),
+        # Public checkout ladder is intentionally 3-tier.
+        "plans": get_all_plans(public_only=True),
         "currency": "usd"
     }
 
@@ -148,10 +153,10 @@ async def create_checkout_session(
     if not plan_code_raw:
         raise HTTPException(status_code=400, detail="Plan code required")
 
-    plan_code = plan_code_raw.strip().lower()
-    valid_plan_codes = {plan.code for plan in get_all_plans()}
-    if plan_code not in valid_plan_codes:
+    raw_plan_code = plan_code_raw.strip().lower()
+    if not is_valid_plan_code(raw_plan_code):
         raise HTTPException(status_code=400, detail="Invalid plan")
+    plan_code = normalize_plan_code(raw_plan_code)
 
     interval = _normalize_interval(await get_request_value(request, "interval"))
     org_id = parse_org_id(await get_request_value(request, "org_id"))

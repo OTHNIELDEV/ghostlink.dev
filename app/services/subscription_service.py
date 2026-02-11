@@ -4,7 +4,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select, and_, func
 from app.models.billing import Subscription, SubscriptionStatus, UsageRecord, Invoice
 from app.models.organization import Membership
-from app.billing.plans import get_plan_limit, get_plan, can_use_feature
+from app.billing.plan_compat import (
+    can_use_feature,
+    get_plan,
+    get_plan_limit,
+    is_valid_plan_code,
+    normalize_plan_code,
+)
 from app.services.stripe_service import stripe_service
 import logging
 
@@ -24,7 +30,7 @@ class SubscriptionService:
         if not subscription:
             subscription = Subscription(
                 org_id=org_id,
-                plan_code="free",
+                plan_code=normalize_plan_code("free"),
                 status=SubscriptionStatus.ACTIVE
             )
             session.add(subscription)
@@ -77,8 +83,8 @@ class SubscriptionService:
                 if metadata_plan:
                     detected_plan_code = metadata_plan
 
-        if detected_plan_code in {"free", "starter", "pro", "business", "enterprise"}:
-            subscription.plan_code = detected_plan_code
+        if detected_plan_code and is_valid_plan_code(detected_plan_code):
+            subscription.plan_code = normalize_plan_code(detected_plan_code)
 
         session.add(subscription)
         await session.commit()
@@ -93,7 +99,7 @@ class SubscriptionService:
         plan_code: str
     ) -> Subscription:
         subscription = await self.get_or_create_subscription(session, org_id)
-        subscription.plan_code = plan_code
+        subscription.plan_code = normalize_plan_code(plan_code)
         session.add(subscription)
         await session.commit()
         await session.refresh(subscription)
