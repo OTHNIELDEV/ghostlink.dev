@@ -41,6 +41,12 @@ engine = create_async_engine(
     **engine_kwargs,
 )
 
+async_session_factory = sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
 import time
 import logging
 
@@ -48,10 +54,7 @@ logger = logging.getLogger(__name__)
 
 async def get_session() -> AsyncSession:
     start_time = time.time()
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with async_session() as session:
+    async with async_session_factory() as session:
         yield session
         
     duration = time.time() - start_time
