@@ -79,6 +79,7 @@ async def init_db():
         await conn.run_sync(_ensure_organization_columns)
         await conn.run_sync(_ensure_user_columns)
         await conn.run_sync(_ensure_analytics_columns)
+        await conn.run_sync(_ensure_optimization_columns)
         await conn.run_sync(_ensure_approval_columns)
 
 
@@ -150,6 +151,34 @@ def _ensure_analytics_columns(sync_conn):
         if column_name in existing:
             continue
         sync_conn.execute(text(f"ALTER TABLE bridgeeventraw ADD COLUMN {column_name} {column_type}"))
+
+
+def _ensure_optimization_columns(sync_conn):
+    inspector = inspect(sync_conn)
+    if "optimizationaction" not in inspector.get_table_names():
+        return
+
+    existing = {col["name"] for col in inspector.get_columns("optimizationaction")}
+    additions = {
+        "source_recommendation": "TEXT",
+        "rationale": "TEXT",
+        "status": "VARCHAR DEFAULT 'pending'",
+        "loop_version": "VARCHAR DEFAULT 'v1'",
+        "decided_by_user_id": "INTEGER",
+        "applied_by_user_id": "INTEGER",
+        "decided_at": "TIMESTAMP",
+        "applied_at": "TIMESTAMP",
+        "error_msg": "TEXT",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    }
+
+    for column_name, column_type in additions.items():
+        if column_name in existing:
+            continue
+        sync_conn.execute(
+            text(f"ALTER TABLE optimizationaction ADD COLUMN {column_name} {column_type}")
+        )
 
 
 def _ensure_approval_columns(sync_conn):
