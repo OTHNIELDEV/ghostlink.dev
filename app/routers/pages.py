@@ -39,6 +39,14 @@ from typing import Any, Optional
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+def tojson_filter(value, indent=None):
+    if indent:
+        return json.dumps(value, indent=indent, default=str)
+    return json.dumps(value, default=str)
+
+templates.env.filters["tojson"] = tojson_filter
+
 logger = logging.getLogger(__name__)
 
 
