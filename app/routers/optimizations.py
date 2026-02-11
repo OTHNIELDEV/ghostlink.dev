@@ -143,6 +143,7 @@ async def generate_actions(
             org_id=org_id,
             include_closed=False,
         )
+        serialized_actions = [_serialize_action(action) for action in actions]
     except Exception as exc:
         logger.exception(
             "Failed to generate optimization actions (site_id=%s, org_id=%s, user_id=%s)",
@@ -167,7 +168,7 @@ async def generate_actions(
         "site_id": site_id,
         "org_id": org_id,
         "created_count": len(created),
-        "actions": [_serialize_action(action) for action in actions],
+        "actions": serialized_actions,
     }
 
 
@@ -188,6 +189,13 @@ async def approve_action(
     action = await optimization_service.get_action(session, action_id, org_id)
     if not action:
         raise HTTPException(status_code=404, detail="Action not found")
+    if action.status == "applied":
+        return {
+            "status": "applied",
+            "site_id": action.site_id,
+            "action": _serialize_action(action),
+            "already_applied": True,
+        }
     if action.status not in {"pending", "approved"}:
         raise HTTPException(status_code=400, detail=f"Action cannot be approved from status: {action.status}")
 
@@ -214,6 +222,7 @@ async def approve_action(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    serialized_action = _serialize_action(action)
 
     background_tasks.add_task(process_site_background, site.id)
     await audit_service.log_event(
@@ -230,7 +239,7 @@ async def approve_action(
     return {
         "status": "applied",
         "site_id": site.id,
-        "action": _serialize_action(action),
+        "action": serialized_action,
     }
 
 
@@ -251,32 +260,51 @@ async def decide_next_action_v2(
     site = await _get_site_for_org(session, site_id, org_id)
 
     created_count = 0
-    decision = await bandit_service.decide_next_action(
-        session=session,
-        org_id=org_id,
-        site_id=site_id,
-        created_by_user_id=user.id,
-        strategy=strategy,
-        context={"source": "api"},
-    )
-    selected_action = decision.get("selected_action")
-    if ensure_candidates and not selected_action:
-        created = await optimization_service.generate_actions_for_site(
+    try:
+        decision = await bandit_service.decide_next_action(
             session=session,
-            site=site,
             org_id=org_id,
+            site_id=site_id,
+            created_by_user_id=user.id,
+            strategy=strategy,
+            context={"source": "api"},
         )
-        created_count = len(created)
-        if created_count > 0:
-            decision = await bandit_service.decide_next_action(
-                session=session,
-                org_id=org_id,
-                site_id=site_id,
-                created_by_user_id=user.id,
-                strategy=strategy,
-                context={"source": "api_bootstrap"},
-            )
-            selected_action = decision.get("selected_action")
+        selected_action = decision.get("selected_action")
+        if ensure_candidates and not selected_action:
+            try:
+                created = await optimization_service.generate_actions_for_site(
+                    session=session,
+                    site=site,
+                    org_id=org_id,
+                )
+            except TypeError as exc:
+                if "unexpected keyword argument 'org_id'" not in str(exc):
+                    raise
+                created = await optimization_service.generate_actions_for_site(
+                    session=session,
+                    site=site,
+                )
+
+            created_count = len(created)
+            if created_count > 0:
+                decision = await bandit_service.decide_next_action(
+                    session=session,
+                    org_id=org_id,
+                    site_id=site_id,
+                    created_by_user_id=user.id,
+                    strategy=strategy,
+                    context={"source": "api_bootstrap"},
+                )
+                selected_action = decision.get("selected_action")
+    except Exception as exc:
+        logger.exception(
+            "Failed to run v2 decision (site_id=%s, org_id=%s, user_id=%s)",
+            site_id,
+            org_id,
+            user.id if user else None,
+        )
+        raise HTTPException(status_code=500, detail=f"v2 decision failed: {str(exc)[:400]}")
+    serialized_selected_action = _serialize_action(selected_action) if selected_action else None
 
     await audit_service.log_event(
         session=session,
@@ -300,7 +328,7 @@ async def decide_next_action_v2(
         "strategy": decision.get("strategy"),
         "decision_id": decision.get("decision_id"),
         "created_count": created_count,
-        "selected_action": _serialize_action(selected_action) if selected_action else None,
+        "selected_action": serialized_selected_action,
         "scored_candidates": decision.get("scored_candidates", []),
     }
 
@@ -387,6 +415,7 @@ async def record_action_feedback(
         action_id=action_id,
         reward=payload.reward,
     )
+    serialized_arm = _serialize_bandit_arm(arm)
     await audit_service.log_event(
         session=session,
         org_id=org_id,
@@ -406,7 +435,7 @@ async def record_action_feedback(
         "org_id": org_id,
         "action_id": action_id,
         "reward": payload.reward,
-        "arm": _serialize_bandit_arm(arm),
+        "arm": serialized_arm,
     }
 
 
@@ -434,6 +463,7 @@ async def reject_action(
         action=action,
         user_id=user.id,
     )
+    serialized_action = _serialize_action(action)
     await audit_service.log_event(
         session=session,
         org_id=org_id,
@@ -446,5 +476,5 @@ async def reject_action(
     )
     return {
         "status": "rejected",
-        "action": _serialize_action(action),
+        "action": serialized_action,
     }

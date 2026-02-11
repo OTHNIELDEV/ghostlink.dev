@@ -682,17 +682,15 @@
             { method: 'POST' }
         );
 
+        if (!response.ok) {
+            emitToast(await parseApiErrorResponse(response, 'Failed to run v2 decision.'));
+            return;
+        }
         let payload = {};
         try {
             payload = await response.json();
         } catch (_) {
             payload = {};
-        }
-
-        if (!response.ok) {
-            const detail = typeof payload.detail === 'string' ? payload.detail : 'Failed to run v2 decision.';
-            emitToast(detail);
-            return;
         }
 
         if (payload.selected_action && payload.selected_action.id) {
