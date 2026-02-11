@@ -16,7 +16,18 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing Database...")
-    await init_db()
+    try:
+        await init_db()
+        logger.info("Database initialized successfully.")
+    except Exception as e:
+        import traceback
+        logger.error(f"Startup Failure: {e}")
+        logger.error(traceback.format_exc())
+        # We don't re-raise immediately so we can see the logs, 
+        # but the app will likely be broken.
+        # However, Vercel might kill it if we don't return yield?
+        # Let's re-raise after logging.
+        raise e
     yield
     logger.info("Shutting down...")
 
