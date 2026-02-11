@@ -48,18 +48,31 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def check_database_url_in_production(self):
+        # DEBUG LOGGING
+        print(f"DEBUG: Loading Settings. ENV={self.ENVIRONMENT}")
+        masked_url = self.DATABASE_URL
+        if "://" in masked_url:
+            scheme, rest = masked_url.split("://", 1)
+            print(f"DEBUG: DB URL Scheme={scheme}")
+        else:
+            print(f"DEBUG: DB URL (Raw)={masked_url}")
+
         if self.ENVIRONMENT == "production":
             if "sqlite" in self.DATABASE_URL:
+                 print("CRITICAL ERROR: Production detected but SQLite URL found. Raising ValueError.")
                  raise ValueError(
                     "CRITICAL: Production environment detected (ENVIRONMENT=production), but DATABASE_URL is missing or set to SQLite. "
+                    "Current URL: " + self.DATABASE_URL + " "
                     "Vercel file system is read-only. You MUST set 'DATABASE_URL' in Vercel Project Settings to your Supabase PostgreSQL connection string."
                  )
             
             # Auto-fix Supabase/Vercel connection strings which often use "postgres://" (libpq) 
             # but SQLAlchemy async needs "postgresql+asyncpg://"
             if self.DATABASE_URL.startswith("postgres://"):
+                print("DEBUG: Auto-fixing postgres:// to postgresql+asyncpg://")
                 self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
             elif self.DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in self.DATABASE_URL:
+                 print("DEBUG: Auto-fixing postgresql:// to postgresql+asyncpg://")
                  self.DATABASE_URL = self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
                  
         return self
