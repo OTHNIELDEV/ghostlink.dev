@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -44,5 +45,14 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
         extra="ignore"
     )
+
+    @model_validator(mode='after')
+    def check_database_url_in_production(self):
+        if self.ENVIRONMENT == "production" and "sqlite" in self.DATABASE_URL:
+             raise ValueError(
+                "CRITICAL: Production environment detected (ENVIRONMENT=production), but DATABASE_URL is missing or set to SQLite. "
+                "Vercel file system is read-only. You MUST set 'DATABASE_URL' in Vercel Project Settings to your Supabase PostgreSQL connection string."
+             )
+        return self
 
 settings = Settings()
