@@ -1613,57 +1613,62 @@ async def approvals_page(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    if not user:
-        return RedirectResponse(url="/auth/login", status_code=303)
+    try:
+        if not user:
+            return RedirectResponse(url="/auth/login", status_code=303)
 
-    effective_org_id = await get_org_id_for_user(session, user, org_id)
-    membership = (
-        await session.exec(
-            select(Membership).where(
-                and_(
-                    Membership.org_id == effective_org_id,
-                    Membership.user_id == user.id,
+        effective_org_id = await get_org_id_for_user(session, user, org_id)
+        membership = (
+            await session.exec(
+                select(Membership).where(
+                    and_(
+                        Membership.org_id == effective_org_id,
+                        Membership.user_id == user.id,
+                    )
                 )
             )
+        ).first()
+        if not membership:
+            return RedirectResponse(url="/dashboard", status_code=303)
+
+        organization = (
+            await session.exec(select(Organization).where(Organization.id == effective_org_id))
+        ).first()
+
+        pending_approval_count = await _get_pending_approval_count(session, effective_org_id)
+        status_counts = await _get_approval_status_counts(session, effective_org_id)
+
+        # Filter is handled by approval_service.list_requests, passing 'status' if not 'all'
+        filter_status = None if status == "all" else status
+        approval_rows = await approval_service.list_requests(
+            session=session,
+            org_id=effective_org_id,
+            status=filter_status,
         )
-    ).first()
-    if not membership:
-        return RedirectResponse(url="/dashboard", status_code=303)
+        serialized_approvals = await _serialize_approvals_for_ui(session, approval_rows)
 
-    organization = (
-        await session.exec(select(Organization).where(Organization.id == effective_org_id))
-    ).first()
-
-    pending_approval_count = await _get_pending_approval_count(session, effective_org_id)
-    status_counts = await _get_approval_status_counts(session, effective_org_id)
-
-    # Filter is handled by approval_service.list_requests, passing 'status' if not 'all'
-    filter_status = None if status == "all" else status
-    approval_rows = await approval_service.list_requests(
-        session=session,
-        org_id=effective_org_id,
-        status=filter_status,
-        limit=50, 
-    )
-    serialized_approvals = await _serialize_approvals_for_ui(session, approval_rows)
-
-    return templates.TemplateResponse(
-        "pages/approvals.html",
-        {
-            "request": request,
-            "active_page": "approvals",
-            "user": user,
-            "org_id": effective_org_id,
-            "organization": organization,
-            "membership_role": membership.role,
-            "pending_approval_count": pending_approval_count,
-            "status_counts": status_counts,
-            "approvals": serialized_approvals,
-            "status_filter": status,
-            "can_review_approvals": membership.role in {"owner", "admin"},
-            **_build_ui_language_context(request, user),
-        },
-    )
+        return templates.TemplateResponse(
+            "pages/approvals.html",
+            {
+                "request": request,
+                "active_page": "approvals",
+                "user": user,
+                "org_id": effective_org_id,
+                "organization": organization,
+                "membership_role": membership.role,
+                "pending_approval_count": pending_approval_count,
+                "status_counts": status_counts,
+                "approvals": serialized_approvals,
+                "status_filter": status,
+                "can_review_approvals": membership.role in {"owner", "admin"},
+                **_build_ui_language_context(request, user),
+            },
+        )
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"CRITICAL ERROR in approvals_page: {e}\n{error_trace}")
+        raise e
 
 
 @router.get("/billing")
@@ -1985,65 +1990,7 @@ async def billing_page(
     })
 
 
-@router.get("/approvals")
-async def approvals_page(
-    request: Request,
-    org_id: int = None,
-    status: Optional[str] = None,
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    if not user:
-        return RedirectResponse(url="/auth/login", status_code=303)
 
-    effective_org_id = await get_org_id_for_user(session, user, org_id)
-    membership = (
-        await session.exec(
-            select(Membership).where(
-                and_(
-                    Membership.org_id == effective_org_id,
-                    Membership.user_id == user.id,
-                )
-            )
-        )
-    ).first()
-    if not membership:
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    requested_status = (status or "").strip().lower()
-    valid_statuses = {"pending", "approved", "rejected", "failed"}
-    status_filter = requested_status if requested_status in valid_statuses else None
-
-    rows = await approval_service.list_requests(
-        session=session,
-        org_id=effective_org_id,
-        status=status_filter,
-    )
-    approvals = await _serialize_approvals_for_ui(session, rows)
-    status_counts = await _get_approval_status_counts(session, effective_org_id)
-    pending_approval_count = status_counts["pending"]
-
-    organization = (
-        await session.exec(select(Organization).where(Organization.id == effective_org_id))
-    ).first()
-
-    return templates.TemplateResponse(
-        "pages/approvals.html",
-        {
-            "request": request,
-            "active_page": "approvals",
-            "user": user,
-            "org_id": effective_org_id,
-            "organization": organization,
-            "approvals": approvals,
-            "status_filter": status_filter or "all",
-            "status_counts": status_counts,
-            "pending_approval_count": pending_approval_count,
-            "can_review_approvals": membership.role in {"owner", "admin"},
-            "membership_role": membership.role,
-            **_build_ui_language_context(request, user),
-        },
-    )
 
 @router.get("/features")
 async def features_page(

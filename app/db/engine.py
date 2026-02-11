@@ -41,12 +41,22 @@ engine = create_async_engine(
     **engine_kwargs,
 )
 
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
 async def get_session() -> AsyncSession:
+    start_time = time.time()
     async_session = sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
     )
     async with async_session() as session:
         yield session
+        
+    duration = time.time() - start_time
+    if duration > 0.2:
+         logger.warning(f"Slow DB Session: {duration:.4f}s")
 
 async def init_db():
     from sqlmodel import SQLModel
@@ -69,6 +79,7 @@ async def init_db():
         await conn.run_sync(_ensure_organization_columns)
         await conn.run_sync(_ensure_user_columns)
         await conn.run_sync(_ensure_analytics_columns)
+        await conn.run_sync(_ensure_approval_columns)
 
 
 def _ensure_site_columns(sync_conn):
@@ -139,3 +150,26 @@ def _ensure_analytics_columns(sync_conn):
         if column_name in existing:
             continue
         sync_conn.execute(text(f"ALTER TABLE bridgeeventraw ADD COLUMN {column_name} {column_type}"))
+
+
+def _ensure_approval_columns(sync_conn):
+    inspector = inspect(sync_conn)
+    if "approvalrequest" not in inspector.get_table_names():
+        return
+
+    existing = {col["name"] for col in inspector.get_columns("approvalrequest")}
+    additions = {
+        "reviewed_by_user_id": "INTEGER",
+        "requester_note": "TEXT",
+        "review_note": "TEXT",
+        "execution_result": "TEXT",
+        "reviewed_at": "TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    }
+
+    for column_name, column_type in additions.items():
+        if column_name in existing:
+            continue
+        sync_conn.execute(
+            text(f"ALTER TABLE approvalrequest ADD COLUMN {column_name} {column_type}")
+        )
