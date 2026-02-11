@@ -96,11 +96,20 @@ async def register(
     
     hashed_pw = get_password_hash(password)
     new_user = User(email=email, hashed_password=hashed_pw, full_name=full_name)
-    session.add(new_user)
-    await session.flush()
     
-    await create_personal_organization(session, new_user)
-    await session.refresh(new_user)
+    try:
+        session.add(new_user)
+        await session.flush()
+        
+        await create_personal_organization(session, new_user)
+        await session.refresh(new_user)
+        
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        import logging
+        logging.error(f"Registration failed: {e}")
+        return templates.TemplateResponse("auth/register.html", {"request": request, "error": f"Registration failed due to a server error. Please try again later. (Error: {str(e)})"})
     
     access_token = create_access_token(subject=new_user.email)
     response = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
