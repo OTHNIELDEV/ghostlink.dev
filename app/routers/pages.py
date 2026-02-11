@@ -33,7 +33,7 @@ from app.services.ui_language_service import (
 from app.services.i18n_service import get_i18n_messages
 from app.services.subscription_service import subscription_service
 from app.services.optimization_service import optimization_service
-from app.billing.plans import get_all_plans, get_public_plans, normalize_plan_code
+from app.billing.plans import get_all_plans, normalize_plan_code
 from app.models.billing import Invoice, Subscription
 from starlette.templating import Jinja2Templates
 from typing import Any, Optional
@@ -923,7 +923,7 @@ async def report_page(
 
 @router.get("/")
 async def landing(request: Request, user: Optional[User] = Depends(get_current_user)):
-    plans = get_public_plans()
+    plans = get_all_plans(public_only=True)
     return templates.TemplateResponse(
         "pages/landing.html",
         {
