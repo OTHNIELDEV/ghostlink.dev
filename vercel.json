@@ -1,15 +1,17 @@
 {
-    "version": 2,
-    "builds": [
+    "rewrites": [
         {
-            "src": "app/main.py",
-            "use": "@vercel/python"
+            "source": "/(.*)",
+            "destination": "/api/index"
         }
     ],
-    "routes": [
-        {
-            "src": "/(.*)",
-            "dest": "app/main.py"
+    "functions": {
+        "api/**/*": {
+            "maxDuration": 10,
+            "memory": 1024
         }
+    },
+    "regions": [
+        "icn1"
     ]
 }
