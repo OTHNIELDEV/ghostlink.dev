@@ -1,188 +1,146 @@
 from typing import Dict, List
+
 from app.models.billing import Plan, PlanFeature
+
+DEFAULT_PLAN_CODE = "free"
+
+# Keep legacy codes accepted to avoid breaking existing subscriptions/webhooks.
+PLAN_ALIASES: dict[str, str] = {
+    "business": "pro",
+}
+
+INTERNAL_PLAN_CODES: tuple[str, ...] = ()
+PUBLIC_PLAN_CODES: tuple[str, ...] = ("free", "pro", "agency")
 
 PLAN_CONFIG: Dict[str, dict] = {
     "free": {
         "name": "Free",
-        "description": "Baseline setup for first AI visibility proof",
+        "description": "Essential link tracking for individuals",
         "price_monthly": 0,
         "price_yearly": 0,
         "currency": "usd",
         "limits": {
-            "sites": 1,
+            "sites": 2, # Matches "2 Links" request
             "site_scans_per_month": 5,
-            "api_calls_per_month": 100,
+            "link_limit": 2,
             "team_members": 1,
-            "analytics_retention_days": 30,
-            "reports_export": False,
-            "custom_branding": False,
-            "priority_support": False,
             "webhook_endpoints": 0,
             "api_access": False,
         },
         "features": [
-            PlanFeature(code="proof_center_basic", name="Proof Center (Basic)", description="Track baseline proof KPIs for one site", included=True),
-            PlanFeature(code="ai_analysis", name="AI Site Analysis", description="AI-powered site analysis and optimization suggestions", included=True),
-            PlanFeature(code="json_ld", name="JSON-LD Generation", description="Automatic structured data generation", included=True),
-            PlanFeature(code="llms_txt", name="LLMs.txt Generation", description="AI-friendly site summary generation", included=True),
-            PlanFeature(code="basic_analytics", name="Basic Analytics", description="Track AI bot visits to your site", included=True),
-            PlanFeature(code="tracking_script", name="Tracking Script", description="JavaScript snippet for your website", included=True),
-            PlanFeature(code="seo_audit", name="SEO Audit", description="Basic SEO analysis and recommendations", included=True),
+            PlanFeature(
+                code="weekly_indexing",
+                name="Weekly Indexing",
+                description="Standard weekly update frequency",
+                included=True,
+            ),
+            PlanFeature(
+                code="basic_analytics",
+                name="Basic Analytics",
+                description="7-day data retention",
+                included=True,
+            ),
         ],
         "is_popular": False,
-        "is_enterprise": False,
-    },
-    "starter": {
-        "name": "Starter",
-        "description": "Weekly proof operations for teams running multiple sites",
-        "price_monthly": 1900,
-        "price_yearly": 1599,
-        "currency": "usd",
-        "limits": {
-            "sites": 3,
-            "site_scans_per_month": 50,
-            "api_calls_per_month": 1000,
-            "team_members": 2,
-            "analytics_retention_days": 90,
-            "reports_export": True,
-            "custom_branding": False,
-            "priority_support": False,
-            "webhook_endpoints": 1,
-            "api_access": True,
-        },
-        "features": [
-            PlanFeature(code="proof_center_team", name="Proof Center (Team)", description="Track ACR/Citation/AI Assist across team workflows", included=True),
-            PlanFeature(code="ai_analysis", name="AI Site Analysis", description="AI-powered site analysis and optimization suggestions", included=True),
-            PlanFeature(code="json_ld", name="JSON-LD Generation", description="Automatic structured data generation", included=True),
-            PlanFeature(code="llms_txt", name="LLMs.txt Generation", description="AI-friendly site summary generation", included=True),
-            PlanFeature(code="advanced_analytics", name="Advanced Analytics", description="Detailed analytics with historical data", included=True),
-            PlanFeature(code="tracking_script", name="Tracking Script", description="JavaScript snippet for your website", included=True),
-            PlanFeature(code="seo_audit", name="SEO Audit", description="Comprehensive SEO analysis and recommendations", included=True),
-            PlanFeature(code="scheduled_scans", name="Scheduled Scans", description="Automatic weekly site rescans", included=True),
-            PlanFeature(code="api_access", name="API Access", description="Programmatic access to GhostLink API", included=True),
-            PlanFeature(code="export_reports", name="Export Reports", description="PDF and CSV report exports", included=True),
-        ],
-        "is_popular": False,
-        "is_enterprise": False,
     },
     "pro": {
         "name": "Pro",
-        "description": "Growth-stage proof engine with advanced optimization loops",
-        "price_monthly": 4900,
-        "price_yearly": 3999,
+        "description": "Real-time visibility for serious growth",
+        "price_monthly": 2900,  # $29.00
+        "price_yearly": 29000,
         "currency": "usd",
         "limits": {
-            "sites": 10,
-            "site_scans_per_month": 500,
-            "api_calls_per_month": 10000,
-            "team_members": 5,
-            "analytics_retention_days": 365,
-            "reports_export": True,
-            "custom_branding": True,
-            "priority_support": True,
+            "sites": 20, # Matches "20 Links" request
+            "site_scans_per_month": 60,
+            "link_limit": 20,
+            "team_members": 3,
             "webhook_endpoints": 5,
             "api_access": True,
         },
         "features": [
-            PlanFeature(code="before_after_timeline", name="Before/After Timeline", description="Compare baseline vs latest answer outcomes", included=True),
-            PlanFeature(code="ai_analysis", name="AI Site Analysis", description="AI-powered site analysis and optimization suggestions", included=True),
-            PlanFeature(code="json_ld", name="JSON-LD Generation", description="Automatic structured data generation", included=True),
-            PlanFeature(code="llms_txt", name="LLMs.txt Generation", description="AI-friendly site summary generation", included=True),
-            PlanFeature(code="advanced_analytics", name="Advanced Analytics", description="Detailed analytics with historical data", included=True),
-            PlanFeature(code="tracking_script", name="Tracking Script", description="JavaScript snippet for your website", included=True),
-            PlanFeature(code="seo_audit", name="SEO Audit", description="Comprehensive SEO analysis and recommendations", included=True),
-            PlanFeature(code="scheduled_scans", name="Scheduled Scans", description="Automatic daily site rescans", included=True),
-            PlanFeature(code="api_access", name="API Access", description="Programmatic access to GhostLink API", included=True),
-            PlanFeature(code="export_reports", name="Export Reports", description="PDF and CSV report exports", included=True),
-            PlanFeature(code="custom_branding", name="Custom Branding", description="Remove GhostLink branding from reports", included=True),
-            PlanFeature(code="priority_support", name="Priority Support", description="Priority email support with 24h response", included=True),
-            PlanFeature(code="team_collaboration", name="Team Collaboration", description="Invite team members to collaborate", included=True),
-            PlanFeature(code="webhooks", name="Webhooks", description="Real-time event notifications", included=True),
+            PlanFeature(
+                code="daily_indexing",
+                name="Daily Real-time Indexing",
+                description="Updates detected within 24h",
+                included=True,
+            ),
+            PlanFeature(
+                code="dashboard_access",
+                name="Full Dashboard Access",
+                description="Unlock advanced visualization charts",
+                included=True,
+            ),
+            PlanFeature(
+                code="priority_support",
+                name="Priority Support",
+                description="Email support within 24h",
+                included=True,
+            ),
         ],
         "is_popular": True,
-        "is_enterprise": False,
     },
-    "business": {
-        "name": "Business",
-        "description": "Revenue-linked proof and automation for large organizations",
-        "price_monthly": 9900,
-        "price_yearly": 7999,
+    "agency": {
+        "name": "Agency",
+        "description": "Unlimited scale for power users",
+        "price_monthly": 9900,  # $99.00
+        "price_yearly": 99000,
         "currency": "usd",
         "limits": {
-            "sites": 50,
-            "site_scans_per_month": 2000,
-            "api_calls_per_month": 100000,
-            "team_members": 20,
-            "analytics_retention_days": 730,
-            "reports_export": True,
-            "custom_branding": True,
-            "priority_support": True,
+            "sites": 1000000, # Matches "Unlimited" request
+            "site_scans_per_month": 1000,
+            "link_limit": 1000000,
+            "team_members": 10,
             "webhook_endpoints": 20,
             "api_access": True,
-            "dedicated_support": True,
-            "sla_guarantee": True,
         },
         "features": [
-            PlanFeature(code="roi_attribution", name="ROI Attribution Layer", description="Link AI proof metrics with conversion outcomes", included=True),
-            PlanFeature(code="ai_analysis", name="AI Site Analysis", description="AI-powered site analysis and optimization suggestions", included=True),
-            PlanFeature(code="json_ld", name="JSON-LD Generation", description="Automatic structured data generation", included=True),
-            PlanFeature(code="llms_txt", name="LLMs.txt Generation", description="AI-friendly site summary generation", included=True),
-            PlanFeature(code="advanced_analytics", name="Advanced Analytics", description="Detailed analytics with historical data", included=True),
-            PlanFeature(code="tracking_script", name="Tracking Script", description="JavaScript snippet for your website", included=True),
-            PlanFeature(code="seo_audit", name="SEO Audit", description="Comprehensive SEO analysis and recommendations", included=True),
-            PlanFeature(code="scheduled_scans", name="Scheduled Scans", description="Automatic hourly site rescans", included=True),
-            PlanFeature(code="api_access", name="API Access", description="Programmatic access to GhostLink API", included=True),
-            PlanFeature(code="export_reports", name="Export Reports", description="PDF and CSV report exports", included=True),
-            PlanFeature(code="custom_branding", name="Custom Branding", description="Remove GhostLink branding from reports", included=True),
-            PlanFeature(code="priority_support", name="Priority Support", description="Priority email support with 4h response", included=True),
-            PlanFeature(code="team_collaboration", name="Team Collaboration", description="Invite team members to collaborate", included=True),
-            PlanFeature(code="webhooks", name="Webhooks", description="Real-time event notifications", included=True),
-            PlanFeature(code="white_label", name="White-label Reports", description="Custom branded client reports", included=True),
-            PlanFeature(code="audit_log", name="Audit Log", description="Complete activity audit trail", included=True),
-        ],
-        "is_popular": False,
-        "is_enterprise": False,
-    },
-    "enterprise": {
-        "name": "Enterprise",
-        "description": "Custom enterprise program for AI visibility governance at scale",
-        "price_monthly": 0,
-        "price_yearly": 0,
-        "currency": "usd",
-        "limits": {
-            "sites": -1,
-            "site_scans_per_month": -1,
-            "api_calls_per_month": -1,
-            "team_members": -1,
-            "analytics_retention_days": -1,
-            "reports_export": True,
-            "custom_branding": True,
-            "priority_support": True,
-            "webhook_endpoints": -1,
-            "api_access": True,
-            "dedicated_support": True,
-            "sla_guarantee": True,
-            "custom_contract": True,
-        },
-        "features": [
-            PlanFeature(code="everything_in_business", name="Everything in Business", description="All Business plan features included", included=True),
-            PlanFeature(code="executive_briefing", name="Executive Proof Briefing", description="Custom reporting package for leadership reviews", included=True),
-            PlanFeature(code="custom_contract", name="Custom Contract", description="Flexible billing and contract terms", included=True),
-            PlanFeature(code="dedicated_manager", name="Dedicated Account Manager", description="Your personal GhostLink specialist", included=True),
-            PlanFeature(code="custom_development", name="Custom Development", description="Feature development on request", included=True),
-            PlanFeature(code="sla_guarantee", name="SLA Guarantee", description="99.9% uptime guarantee with penalties", included=True),
-            PlanFeature(code="sso", name="SSO/SAML", description="Single sign-on integration", included=True),
-            PlanFeature(code="security_review", name="Security Review", description="Annual security assessment", included=True),
+            PlanFeature(
+                code="priority_indexing",
+                name="Priority Indexing",
+                description="Fastest possible indexing speed",
+                included=True,
+            ),
+            PlanFeature(
+                code="pdf_reports",
+                name="PDF Reports",
+                description="White-label PDF exports",
+                included=True,
+            ),
+            PlanFeature(
+                code="dedicated_support",
+                name="Dedicated Support",
+                description="Direct Slack channel access",
+                included=True,
+            ),
         ],
         "is_popular": False,
         "is_enterprise": True,
     },
 }
 
-def get_plan(plan_code: str) -> Plan:
-    config = PLAN_CONFIG.get(plan_code, PLAN_CONFIG["free"])
+
+def normalize_plan_code(plan_code: str | None, fallback: str = DEFAULT_PLAN_CODE) -> str:
+    candidate = str(plan_code or "").strip().lower()
+    if not candidate:
+        return fallback
+    candidate = PLAN_ALIASES.get(candidate, candidate)
+    if candidate not in PLAN_CONFIG:
+        return fallback
+    return candidate
+
+
+def is_valid_plan_code(plan_code: str | None) -> bool:
+    candidate = str(plan_code or "").strip().lower()
+    if not candidate:
+        return False
+    return candidate in PLAN_CONFIG or candidate in PLAN_ALIASES
+
+
+def get_plan(plan_code: str | None) -> Plan:
+    normalized_code = normalize_plan_code(plan_code)
+    config = PLAN_CONFIG.get(normalized_code, PLAN_CONFIG[DEFAULT_PLAN_CODE])
     return Plan(
-        code=plan_code,
+        code=normalized_code,
         name=config["name"],
         description=config["description"],
         price_monthly=config["price_monthly"],
@@ -194,15 +152,23 @@ def get_plan(plan_code: str) -> Plan:
         is_enterprise=config.get("is_enterprise", False),
     )
 
-def get_all_plans() -> List[Plan]:
-    return [get_plan(code) for code in PLAN_CONFIG.keys()]
+
+def get_all_plans(public_only: bool = False) -> List[Plan]:
+    codes = PUBLIC_PLAN_CODES if public_only else INTERNAL_PLAN_CODES + PUBLIC_PLAN_CODES
+    return [get_plan(code) for code in codes]
+
+
+def get_public_plans() -> List[Plan]:
+    return get_all_plans(public_only=True)
+
 
 def get_plan_limit(plan_code: str, limit_name: str) -> int:
-    plan_config = PLAN_CONFIG.get(plan_code, PLAN_CONFIG["free"])
-    return plan_config["limits"].get(limit_name, 0)
+    plan_config = PLAN_CONFIG.get(normalize_plan_code(plan_code), PLAN_CONFIG[DEFAULT_PLAN_CODE])
+    return int(plan_config["limits"].get(limit_name, 0))
+
 
 def can_use_feature(plan_code: str, feature_code: str) -> bool:
-    plan_config = PLAN_CONFIG.get(plan_code, PLAN_CONFIG["free"])
+    plan_config = PLAN_CONFIG.get(normalize_plan_code(plan_code), PLAN_CONFIG[DEFAULT_PLAN_CODE])
     for feature in plan_config["features"]:
         if feature.code == feature_code:
             return feature.included

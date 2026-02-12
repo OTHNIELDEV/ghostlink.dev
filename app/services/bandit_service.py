@@ -143,10 +143,25 @@ class BanditService:
         await session.commit()
         await session.refresh(decision)
 
-        selected_action = action_by_id.get(selected["action_id"]) if selected else None
+        selected_action_id = selected["action_id"] if selected else None
+        selected_action = None
+        if selected_action_id is not None:
+            selected_action = (
+                await session.exec(
+                    select(OptimizationAction).where(
+                        and_(
+                            OptimizationAction.id == selected_action_id,
+                            OptimizationAction.org_id == org_id,
+                            OptimizationAction.site_id == site_id,
+                        )
+                    )
+                )
+            ).first()
+
         return {
             "decision_id": decision.id,
             "strategy": strategy_name,
+            "selected_action_id": selected_action_id,
             "selected_action": selected_action,
             "scored_candidates": scored_candidates,
         }

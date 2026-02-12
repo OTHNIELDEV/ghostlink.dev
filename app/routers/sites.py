@@ -169,12 +169,14 @@ async def add_site(
         select(func.count()).select_from(Site).where(Site.org_id == effective_org_id)
     )
     current_sites = result.one()
-    max_sites = get_plan_limit(plan_code, "sites")
+    current_sites = result.one()
+    # Use DB-persisted link limit as per request requirement
+    max_sites = subscription.link_limit if subscription.link_limit is not None else get_plan_limit(plan_code, "sites")
     
     if max_sites != -1 and current_sites >= max_sites:
         raise HTTPException(
             status_code=403,
-            detail=f"Site limit reached ({max_sites}). Upgrade your plan to add more sites."
+            detail=f"Link limit reached ({max_sites}). PRO plan allows more sites."
         )
     
     try:

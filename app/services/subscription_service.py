@@ -85,6 +85,7 @@ class SubscriptionService:
 
         if detected_plan_code and is_valid_plan_code(detected_plan_code):
             subscription.plan_code = normalize_plan_code(detected_plan_code)
+            subscription.link_limit = get_plan_limit(subscription.plan_code, "link_limit")
 
         session.add(subscription)
         await session.commit()
@@ -100,6 +101,7 @@ class SubscriptionService:
     ) -> Subscription:
         subscription = await self.get_or_create_subscription(session, org_id)
         subscription.plan_code = normalize_plan_code(plan_code)
+        subscription.link_limit = get_plan_limit(subscription.plan_code, "link_limit")
         session.add(subscription)
         await session.commit()
         await session.refresh(subscription)

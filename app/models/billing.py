@@ -20,6 +20,7 @@ class Subscription(SQLModel, table=True):
     stripe_price_id: Optional[str] = Field(default=None)
     status: SubscriptionStatus = Field(default=SubscriptionStatus.INCOMPLETE)
     plan_code: str = Field(default="free", index=True)
+    link_limit: int = Field(default=2)
     current_period_start: Optional[datetime] = None
     current_period_end: Optional[datetime] = None
     cancel_at_period_end: bool = Field(default=False)

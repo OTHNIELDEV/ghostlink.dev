@@ -184,6 +184,16 @@ def test_auto_optimize_loop_generate_approve_reject(optimize_prefix: str, monkey
         assert approve.status_code == 200
         assert approve.json()["status"] == "applied"
 
+        # Approve endpoint should be idempotent for already-applied actions.
+        approve_again = client.post(
+            f"/api/v1/optimizations/actions/{first_action_id}/approve",
+            params={"org_id": org_id},
+        )
+        assert approve_again.status_code == 200
+        second_payload = approve_again.json()
+        assert second_payload["status"] == "applied"
+        assert second_payload.get("already_applied") is True
+
         applied_action = asyncio.run(_get_action(first_action_id))
         assert applied_action is not None
         assert applied_action.status == "applied"

@@ -85,6 +85,7 @@ async def init_db():
         await conn.run_sync(_ensure_optimization_columns)
         await conn.run_sync(_ensure_bandit_columns)
         await conn.run_sync(_ensure_approval_columns)
+        await conn.run_sync(_ensure_subscription_columns)
 
 
 def _ensure_site_columns(sync_conn):
@@ -248,3 +249,11 @@ def _ensure_approval_columns(sync_conn):
         sync_conn.execute(
             text(f"ALTER TABLE approvalrequest ADD COLUMN {column_name} {column_type}")
         )
+
+
+def _ensure_subscription_columns(sync_conn):
+    inspector = inspect(sync_conn)
+    if "subscription" in inspector.get_table_names():
+        existing_columns = {col["name"] for col in inspector.get_columns("subscription")}
+        if "link_limit" not in existing_columns:
+            sync_conn.execute(text("ALTER TABLE subscription ADD COLUMN link_limit INTEGER DEFAULT 2"))

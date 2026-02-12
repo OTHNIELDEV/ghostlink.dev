@@ -304,6 +304,17 @@ async def decide_next_action_v2(
             user.id if user else None,
         )
         raise HTTPException(status_code=500, detail=f"v2 decision failed: {str(exc)[:400]}")
+    selected_action_id = decision.get("selected_action_id")
+    if not selected_action_id:
+        scored_candidates = decision.get("scored_candidates") or []
+        if scored_candidates:
+            selected_action_id = scored_candidates[0].get("action_id")
+    if selected_action_id:
+        selected_action = await optimization_service.get_action(
+            session=session,
+            action_id=selected_action_id,
+            org_id=org_id,
+        )
     serialized_selected_action = _serialize_action(selected_action) if selected_action else None
 
     await audit_service.log_event(
@@ -316,7 +327,7 @@ async def decide_next_action_v2(
         metadata={
             "strategy": decision.get("strategy"),
             "decision_id": decision.get("decision_id"),
-            "selected_action_id": selected_action.id if selected_action else None,
+            "selected_action_id": selected_action_id,
             "created_count": created_count,
         },
         commit=True,

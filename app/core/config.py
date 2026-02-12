@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     STRIPE_PRICE_BUSINESS_YEAR: str = ""
     STRIPE_PRICE_ENTERPRISE_MONTH: str = ""
     STRIPE_PRICE_ENTERPRISE_YEAR: str = ""
+    STRIPE_PRICE_AGENCY_MONTH: str = ""
+    STRIPE_PRICE_AGENCY_YEAR: str = ""
     FRONTEND_URL: str = "http://localhost:8000"
     ENVIRONMENT: str = "development"
     CDN_BASE_URL: str = ""

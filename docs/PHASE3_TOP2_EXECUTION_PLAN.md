@@ -1,96 +1,33 @@
-# Phase 3 핵심 2개 실행 계획 (Answer Capture + AI Attribution)
+# Phase 3 상위 2개 실행 계획
 
-업데이트: 2026-02-07
+## 목표
 
-## 1) 우선순위 결정
-- 우선순위 1: **Answer Capture Lab**
-  - 이유: 제품 가치를 가장 직접적으로 증명 가능(답변 점유율/인용률)
-- 우선순위 2: **AI 트래픽 품질 기여도(Attribution)**
-  - 이유: 매출/전환 관점 ROI 근거를 제공해 유료 전환 설득력을 강화
+고객 체감 가치와 운영 안정성에 직접 영향을 주는 2개 과제를 우선 실행합니다.
 
-## 2) 범위 (v1)
+## 과제 1: 결제/승인/요금제 일관성 완성
 
-### 2.1 Answer Capture Lab v1
-- 질문 세트 생성/관리
-- 질문 항목 생성/관리
-- 실행(run) 결과 수집(외부 평가 결과 ingest)
-- 지표 계산:
-  - 브랜드 언급률(Brand Mention Rate)
-  - 인용률(Citation Rate)
-  - 평균 품질 점수(Average Quality Score)
+### 범위
+- 요금제 3단계 고정
+- 결제 API와 웹훅 매핑 정합성 강화
+- 승인 플로우와 결제 실행 결과 연결
 
-### 2.2 AI Attribution v1
-- 세션 이벤트 수집
-- 기간별 스냅샷 계산:
-  - 전체 전환수(Conversions Total)
-  - AI 보조 전환수(AI Assisted Conversions)
-  - AI 기여 전환율(AI Assist Rate)
-- 스냅샷 저장/조회
+### 완료 기준
+- `/billing/plans` 3단계만 반환
+- Stripe 이벤트 처리 후 구독/인보이스 상태 일관성 확보
 
-## 3) 데이터 모델 (구현됨)
+## 과제 2: 최적화 루프 안정성 강화
 
-### 3.1 Answer Capture 테이블
-- `AnswerCaptureQuerySet`
-  - `org_id`, `name`, `description`, `default_brand_terms_json`, `is_active`
-- `AnswerCaptureQueryItem`
-  - `query_set_id`, `prompt_text`, `expected_brand_terms_json`, `priority`, `is_active`
-- `AnswerCaptureRun`
-  - `org_id`, `query_set_id`, `status`, `provider`, `model`, `summary_json`
-- `AnswerCaptureResult`
-  - `run_id`, `query_item_id`, `answer_text`, `cited_urls_json`
-  - `has_brand_mention`, `has_site_citation`, `quality_score`
+### 범위
+- v1/v2 루프 오류 격리
+- ORM 직렬화 시점 안정화
+- 감사 로그 실패 비치명 처리
 
-### 3.2 Attribution 테이블
-- `AttributionEvent`
-  - `org_id`, `site_id`, `session_key`, `source_type`, `source_bot_name`
-  - `utm_*`, `event_name`, `event_value`, `event_timestamp`, `metadata_json`
-- `AttributionSnapshot`
-  - `org_id`, `period_start`, `period_end`
-  - `conversions_total`, `ai_assisted_conversions`, `ai_assist_rate_pct`, `metadata_json`
+### 완료 기준
+- `액션 생성(Generate Actions)`, `다음 결정(Decide Next v2)` 경로 500 재발 방지
+- 주요 회귀 테스트 통과
 
-## 4) API 계약 (구현됨)
+## 일정
 
-기본 prefix: `/api/v1`
-
-### 4.1 Answer Capture API
-- `GET /answer-capture/query-sets?org_id=<id>`
-- `POST /answer-capture/query-sets?org_id=<id>` (owner/admin)
-- `GET /answer-capture/query-sets/{query_set_id}/queries?org_id=<id>`
-- `POST /answer-capture/query-sets/{query_set_id}/queries?org_id=<id>` (owner/admin)
-- `POST /answer-capture/runs?org_id=<id>`
-- `GET /answer-capture/runs?org_id=<id>&query_set_id=<optional>`
-- `GET /answer-capture/runs/{run_id}?org_id=<id>`
-
-### 4.2 Attribution API
-- `POST /attribution/events?org_id=<id>`
-- `GET /attribution/snapshot?org_id=<id>&period_days=30`
-- `POST /attribution/snapshot?org_id=<id>&period_days=30` (owner/admin, 저장)
-- `GET /attribution/snapshots?org_id=<id>`
-
-## 5) RBAC 규칙
-- 조직 멤버:
-  - query-set/list, run 생성/조회, attribution event 기록, snapshot 조회
-- Owner/Admin:
-  - query-set 생성, query-item 생성, attribution snapshot 저장
-
-## 6) 감사 로그 이벤트 (구현됨)
-- `answer_capture.query_set_created`
-- `answer_capture.query_item_created`
-- `answer_capture.run_created`
-- `attribution.event_recorded`
-- `attribution.snapshot_saved`
-
-## 7) 인수 기준 (v1)
-- 질문 세트 1개 + 질문 1개를 생성하고 run 결과를 수집하면 summary 지표가 반환된다.
-- attribution event 1개 이상 기록 후 snapshot 조회 시 conversion 집계가 계산된다.
-- 동일 org 내 권한 없는 사용자의 owner/admin 전용 작업은 403이 반환된다.
-
-## 8) 다음 빌드 단계 (v1.1~v1.3)
-- v1.1: 자동 LLM 평가 실행 worker (provider별 adapter)
-- v1.2: 대시보드 카드(ACR/Citation/AI Assist Rate) UI 연결
-- v1.3: 실험 정책 엔진(밴딧)과 run 결과 피드백 루프 연결
-
-## 9) 미결정 항목
-- Conversion 표준 이벤트 세트 확정 (`trial_started`, `purchase_completed` 등)
-- ACR 계산 시 브랜드 동의어/오탈자 허용 정책
-- Citation 판단 시 도메인 매칭 규칙(subdomain 포함 여부)
+- Day 1~2: 코드 정비 + 테스트 추가
+- Day 3: 배포 전 검증 + 스모크 테스트
+- Day 4: 모니터링 및 사후 보정

@@ -105,6 +105,44 @@ async def handle_stripe_event(session: AsyncSession, event: dict):
     else:
         logger.debug(f"Unhandled event type: {event_type}")
 
+
+async def _resolve_org_id_for_billing_event(session: AsyncSession, data: dict) -> int | None:
+    metadata = data.get("metadata", {}) or {}
+    metadata_org_id = metadata.get("org_id")
+    try:
+        if metadata_org_id is not None:
+            resolved = int(metadata_org_id)
+            if resolved > 0:
+                return resolved
+    except (TypeError, ValueError):
+        pass
+
+    subscription_id = data.get("subscription")
+    if subscription_id:
+        sub = (
+            await session.exec(
+                select(Subscription).where(
+                    Subscription.stripe_subscription_id == subscription_id
+                )
+            )
+        ).first()
+        if sub:
+            return sub.org_id
+
+    customer_id = data.get("customer")
+    if customer_id:
+        sub = (
+            await session.exec(
+                select(Subscription).where(
+                    Subscription.stripe_customer_id == customer_id
+                )
+            )
+        ).first()
+        if sub:
+            return sub.org_id
+
+    return None
+
 async def handle_checkout_completed(session: AsyncSession, data: dict):
     customer_id = data.get("customer")
     subscription_id = data.get("subscription")
@@ -196,9 +234,19 @@ async def handle_invoice_payment_succeeded(session: AsyncSession, data: dict):
         
         if existing.first():
             return
+
+        org_id = await _resolve_org_id_for_billing_event(session, data)
+        if not org_id:
+            logger.warning(
+                "Skipping invoice record because org_id could not be resolved (invoice_id=%s, subscription=%s, customer=%s)",
+                data.get("id"),
+                data.get("subscription"),
+                data.get("customer"),
+            )
+            return
         
         invoice = Invoice(
-            org_id=int(data.get("metadata", {}).get("org_id", 0)),
+            org_id=org_id,
             stripe_invoice_id=data.get("id"),
             stripe_subscription_id=data.get("subscription"),
             status=data.get("status"),

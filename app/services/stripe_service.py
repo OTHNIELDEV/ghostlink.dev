@@ -155,6 +155,8 @@ class StripeService:
             ("starter", "year"): settings.STRIPE_PRICE_STARTER_YEAR or settings.STRIPE_PRICE_STARTER,
             ("pro", "month"): settings.STRIPE_PRICE_PRO_MONTH or settings.STRIPE_PRICE_PRO,
             ("pro", "year"): settings.STRIPE_PRICE_PRO_YEAR or settings.STRIPE_PRICE_PRO,
+            ("agency", "month"): settings.STRIPE_PRICE_AGENCY_MONTH or settings.STRIPE_PRICE_BUSINESS_MONTH,
+            ("agency", "year"): settings.STRIPE_PRICE_AGENCY_YEAR or settings.STRIPE_PRICE_BUSINESS_YEAR,
             ("business", "month"): settings.STRIPE_PRICE_BUSINESS_MONTH or settings.STRIPE_PRICE_BUSINESS,
             ("business", "year"): settings.STRIPE_PRICE_BUSINESS_YEAR or settings.STRIPE_PRICE_BUSINESS,
             ("enterprise", "month"): settings.STRIPE_PRICE_ENTERPRISE_MONTH or settings.STRIPE_PRICE_ENTERPRISE,
@@ -180,7 +182,13 @@ class StripeService:
                 settings.STRIPE_PRICE_PRO_YEAR,
                 settings.STRIPE_PRICE_PRO,
             ],
-            "business": [
+            "agency": [
+                settings.STRIPE_PRICE_AGENCY_MONTH,
+                settings.STRIPE_PRICE_AGENCY_YEAR,
+                settings.STRIPE_PRICE_BUSINESS_MONTH, # Fallback
+                settings.STRIPE_PRICE_BUSINESS_YEAR,  # Fallback
+            ],
+            "business": [ # Legacy support
                 settings.STRIPE_PRICE_BUSINESS_MONTH,
                 settings.STRIPE_PRICE_BUSINESS_YEAR,
                 settings.STRIPE_PRICE_BUSINESS,
