@@ -20,7 +20,7 @@ PLAN_CONFIG: Dict[str, dict] = {
         "price_yearly": 0,
         "currency": "usd",
         "limits": {
-            "sites": 2, # Matches "2 Links" request
+            "sites": 2,
             "site_scans_per_month": 5,
             "link_limit": 2,
             "team_members": 1,
@@ -28,18 +28,12 @@ PLAN_CONFIG: Dict[str, dict] = {
             "api_access": False,
         },
         "features": [
-            PlanFeature(
-                code="weekly_indexing",
-                name="Weekly Indexing",
-                description="Standard weekly update frequency",
-                included=True,
-            ),
-            PlanFeature(
-                code="basic_analytics",
-                name="Basic Analytics",
-                description="7-day data retention",
-                included=True,
-            ),
+            PlanFeature(code="sites", name="2 Active Sites", description="Track up to 2 websites", included=True),
+            PlanFeature(code="weekly", name="Weekly Indexing", description="Standard connection speed", included=True),
+            PlanFeature(code="analytics", name="7-Day Analytics", description="Basic visibility retention", included=True),
+            PlanFeature(code="json_ld", name="Basic JSON-LD", description="Standard schema markup", included=True),
+            PlanFeature(code="llms", name="llms.txt Generation", description="Standard AI compatibility", included=True),
+            PlanFeature(code="support", name="Community Support", description="Access to help center", included=True),
         ],
         "is_popular": False,
     },
@@ -50,7 +44,7 @@ PLAN_CONFIG: Dict[str, dict] = {
         "price_yearly": 29000,
         "currency": "usd",
         "limits": {
-            "sites": 20, # Matches "20 Links" request
+            "sites": 20,
             "site_scans_per_month": 60,
             "link_limit": 20,
             "team_members": 3,
@@ -58,24 +52,13 @@ PLAN_CONFIG: Dict[str, dict] = {
             "api_access": True,
         },
         "features": [
-            PlanFeature(
-                code="daily_indexing",
-                name="Daily Real-time Indexing",
-                description="Updates detected within 24h",
-                included=True,
-            ),
-            PlanFeature(
-                code="dashboard_access",
-                name="Full Dashboard Access",
-                description="Unlock advanced visualization charts",
-                included=True,
-            ),
-            PlanFeature(
-                code="priority_support",
-                name="Priority Support",
-                description="Email support within 24h",
-                included=True,
-            ),
+            PlanFeature(code="sites", name="20 Active Sites", description="Track up to 20 websites", included=True),
+            PlanFeature(code="daily", name="Daily Real-time Indexing", description="Fastest standard updates", included=True),
+            PlanFeature(code="analytics", name="30-Day Analytics", description="Extended history", included=True),
+            PlanFeature(code="competitors", name="Competitor Tracking", description="Monitor AI visibility", included=True),
+            PlanFeature(code="json_ld", name="Advanced JSON-LD", description="Customizable schema", included=True),
+            PlanFeature(code="api", name="API Access", description="Programmatic control", included=True),
+            PlanFeature(code="support", name="Priority Email Support", description="24h response time", included=True),
         ],
         "is_popular": True,
     },
@@ -86,7 +69,7 @@ PLAN_CONFIG: Dict[str, dict] = {
         "price_yearly": 99000,
         "currency": "usd",
         "limits": {
-            "sites": 1000000, # Matches "Unlimited" request
+            "sites": 1000000,
             "site_scans_per_month": 1000,
             "link_limit": 1000000,
             "team_members": 10,
@@ -94,24 +77,13 @@ PLAN_CONFIG: Dict[str, dict] = {
             "api_access": True,
         },
         "features": [
-            PlanFeature(
-                code="priority_indexing",
-                name="Priority Indexing",
-                description="Fastest possible indexing speed",
-                included=True,
-            ),
-            PlanFeature(
-                code="pdf_reports",
-                name="PDF Reports",
-                description="White-label PDF exports",
-                included=True,
-            ),
-            PlanFeature(
-                code="dedicated_support",
-                name="Dedicated Support",
-                description="Direct Slack channel access",
-                included=True,
-            ),
+            PlanFeature(code="sites", name="Unlimited Sites", description="No limits on tracking", included=True),
+            PlanFeature(code="instant", name="Priority Indexing", description="Instant verification", included=True),
+            PlanFeature(code="reports", name="White-label PDF Reports", description="Client-ready exports", included=True),
+            PlanFeature(code="seats", name="10 Team Seats", description="Collaborative dashboard", included=True),
+            PlanFeature(code="retention", name="Unlimited Data History", description="Lifetime analytics", included=True),
+            PlanFeature(code="sso", name="SSO & Security", description="Enterprise-grade auth", included=True),
+            PlanFeature(code="support", name="Dedicated Account Manager", description="Direct Slack channel", included=True),
         ],
         "is_popular": False,
         "is_enterprise": True,

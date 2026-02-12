@@ -462,10 +462,10 @@
                     class="text-emerald-400 text-xs ml-1">(-20%)</span></span>
         </div>
 
-        <div class="grid md:grid-cols-4 gap-6 max-w-7xl mx-auto">
+        <div class="flex flex-wrap justify-center gap-6 max-w-7xl mx-auto">
             {% for plan in plans %}
             <div
-                class="glass rounded-2xl p-6 hover:border-slate-600 transition-all flex flex-col relative {% if plan.is_popular %}border-indigo-500/50{% endif %}">
+                class="glass w-full md:w-80 lg:w-96 rounded-2xl p-6 hover:border-slate-600 transition-all flex flex-col relative {% if plan.is_popular %}border-indigo-500/50{% endif %}">
                 {% if plan.is_popular %}
                 <div
                     class="absolute top-0 right-0 bg-indigo-500 text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
